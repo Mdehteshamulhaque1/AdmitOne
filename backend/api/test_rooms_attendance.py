@@ -147,6 +147,20 @@ class FloorSyncTests(RoomsBase):
         self.assertEqual(resp.data["room_count"], 1)
 
 
+    def test_sync_floors_command_backfills_existing_buildings(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        bare = Building.objects.create(organization=self.org, name="Old Block", floors=2)
+        out = StringIO()
+        call_command("sync_floors", stdout=out)
+        self.assertEqual([f.name for f in bare.floor_set.order_by("level")], ["Ground floor", "1st floor"])
+        # the building that already had floor rows is left untouched
+        self.assertEqual(self.building.floor_set.count(), 2 + 2)  # 3rd/4th existed; Ground/1st added up to count 4
+        self.assertIn("Old Block", out.getvalue())
+
+
 # ------------------------------------------------------------- the catalogue
 
 

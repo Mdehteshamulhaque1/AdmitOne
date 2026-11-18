@@ -280,12 +280,17 @@ function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; 
   // Pre-select the category the visitor chose at sign-up (e.g. Student) so
   // the usual case is "pick a purpose, pick a host".
   const accountCategory = account.data?.category ?? ""
+  const buildingCount = ctx.data?.buildings.length ?? 0
   useEffect(() => {
-    if (draft.category || categories.length === 0) return
-    const preset = categories.some((c) => c.key === accountCategory) ? accountCategory : categories[0].key
-    setDraft({ ...draft, category: preset })
+    const next: Partial<Draft> = {}
+    if (!draft.category && categories.length > 0) {
+      next.category = categories.some((c) => c.key === accountCategory) ? accountCategory : categories[0].key
+    }
+    // One building: there is nothing to choose, so pre-select it.
+    if (!draft.building && buildingCount === 1) next.building = String(ctx.data!.buildings[0].id)
+    if (Object.keys(next).length) setDraft({ ...draft, ...next })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories.length, accountCategory])
+  }, [categories.length, accountCategory, buildingCount])
 
   if (ctx.isLoading) return <Skeleton className="h-96 w-full" />
   if (ctx.isError || !ctx.data) return <Alert variant="danger">Couldn't load the booking form. <Button variant="ghost" size="sm" onClick={onBack}>Choose another organisation</Button></Alert>
@@ -298,26 +303,13 @@ function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; 
           <p className="mt-1 text-sm text-muted-foreground">Choose who you are and what you're coming for; the team assigns your room when they approve.</p>
         </div>
 
-        <div>
-          <div className="mb-2 text-sm font-medium">I am a</div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {categories.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                onClick={() => set({ category: c.key, purpose: "", purpose_other: "" })}
-                className={cn(
-                  "rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition",
-                  draft.category === c.key ? "border-primary bg-primary-soft text-primary" : "border-border bg-card hover:border-border-strong",
-                )}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="d-cat" label="I am a" required>
+            <Select value={draft.category} onValueChange={(v) => set({ category: v, purpose: "", purpose_other: "" })}>
+              <SelectTrigger id="d-cat"><SelectValue placeholder="Choose who you are" /></SelectTrigger>
+              <SelectContent>{categories.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
           <Field id="d-purpose" label="Purpose of visit" required hint={purposes.find((p) => p.label === draft.purpose)?.room_type ? "You'll be sent to the right room for this." : undefined}>
             <Select value={draft.purpose} onValueChange={(v) => set({ purpose: v })} disabled={!draft.category}>
               <SelectTrigger id="d-purpose"><SelectValue placeholder={draft.category ? "Choose a purpose" : "Pick who you are first"} /></SelectTrigger>
@@ -346,28 +338,24 @@ function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; 
               </SelectContent>
             </Select>
           </Field>
-          {ctx.data.buildings.length > 1 && (
-            <Field id="d-bld" label="Building" hint="Optional. Staff confirm the exact room on approval.">
-              <Select value={draft.building || "any"} onValueChange={(v) => set({ building: v === "any" ? "" : v, floor: "" })}>
-                <SelectTrigger id="d-bld"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Not sure</SelectItem>
-                  {ctx.data.buildings.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          {building && building.floors.length > 0 && (
-            <Field id="d-floor" label="Floor">
-              <Select value={draft.floor || "any"} onValueChange={(v) => set({ floor: v === "any" ? "" : v })}>
-                <SelectTrigger id="d-floor"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Not sure</SelectItem>
-                  {building.floors.map((f) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
+          <Field id="d-bld" label="Building" hint="Staff confirm the exact room when they approve.">
+            <Select value={draft.building || "any"} onValueChange={(v) => set({ building: v === "any" ? "" : v, floor: "" })}>
+              <SelectTrigger id="d-bld"><SelectValue placeholder="Choose a building" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Not sure</SelectItem>
+                {ctx.data.buildings.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.address ? ` · ${b.address}` : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field id="d-floor" label="Floor" hint={building && building.floors.length === 0 ? "This building has no floors listed." : undefined}>
+            <Select value={draft.floor || "any"} onValueChange={(v) => set({ floor: v === "any" ? "" : v })} disabled={!building || building.floors.length === 0}>
+              <SelectTrigger id="d-floor"><SelectValue placeholder={building ? "Choose a floor" : "Pick a building first"} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Not sure</SelectItem>
+                {(building?.floors ?? []).slice().sort((a, b) => a.level - b.level).map((f) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
@@ -404,28 +392,61 @@ function SlotGrid({ slots, value, onChange, loading, error }: { slots: Availabil
   )
 }
 
+/** The next `days` calendar days as dropdown options, starting today. */
+function upcomingDays(days = 30): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = []
+  const d = new Date()
+  d.setHours(12, 0, 0, 0)
+  for (let i = 0; i < days; i++) {
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    const label = `${i === 0 ? "Today · " : i === 1 ? "Tomorrow · " : ""}${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`
+    out.push({ value, label })
+    d.setDate(d.getDate() + 1)
+  }
+  return out
+}
+
 function ScheduleStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; draft: Draft; setDraft: (d: Draft) => void; onBack: () => void; onNext: () => void }) {
   const avail = usePublicAvailability(slug, draft.host, draft.visit_date)
+  const days = upcomingDays()
+  const slots = avail.data?.slots ?? []
   return (
     <Card>
       <CardContent className="space-y-6 p-5 sm:p-7">
         <div>
           <h2 className="text-xl font-bold tracking-tight">When would you like to come?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Only times inside working hours when your host is free are shown.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Only times inside working hours when your host is free are listed.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-[14rem_1fr]">
-          <Field id="s-date" label="Date" required>
-            <Input id="s-date" type="date" min={todayIso()} value={draft.visit_date} onChange={(e) => setDraft({ ...draft, visit_date: e.target.value, slot: null })} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="s-date" label="Date" required hint="Next 30 days.">
+            <Select value={draft.visit_date} onValueChange={(v) => setDraft({ ...draft, visit_date: v, slot: null })}>
+              <SelectTrigger id="s-date"><SelectValue placeholder="Choose a date" /></SelectTrigger>
+              <SelectContent>{days.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
+            </Select>
           </Field>
-          <div>
-            <div className="mb-1.5 text-sm font-medium">Available times {avail.data ? <span className="text-xs text-muted-foreground">· {avail.data.slot_duration_minutes} min slots</span> : null}</div>
-            {draft.visit_date ? (
-              <SlotGrid slots={avail.data?.slots ?? []} value={draft.slot} onChange={(slot) => setDraft({ ...draft, slot })} loading={avail.isLoading} error={avail.isError ? formatApiError(avail.error) : undefined} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Pick a date to see free slots.</p>
-            )}
-          </div>
+          <Field
+            id="s-time"
+            label="Arrival time"
+            required
+            hint={avail.data ? `${avail.data.slot_duration_minutes}-minute slots` : undefined}
+            error={avail.isError ? formatApiError(avail.error) : draft.visit_date && avail.data && slots.length === 0 ? "No free slots on this day. Try another date." : undefined}
+          >
+            <Select
+              value={draft.slot?.start ?? ""}
+              onValueChange={(start) => setDraft({ ...draft, slot: slots.find((s) => s.start === start) ?? null })}
+              disabled={!draft.visit_date || avail.isLoading || slots.length === 0}
+            >
+              <SelectTrigger id="s-time"><SelectValue placeholder={!draft.visit_date ? "Pick a date first" : avail.isLoading ? "Checking availability…" : "Choose a time"} /></SelectTrigger>
+              <SelectContent>{slots.map((s) => <SelectItem key={s.start} value={s.start}>{s.start} – {s.end}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
         </div>
+        {draft.visit_date && !avail.isLoading && slots.length > 0 && (
+          <div>
+            <div className="mb-1.5 text-xs font-medium text-muted-foreground">Or tap a time</div>
+            <SlotGrid slots={slots} value={draft.slot} onChange={(slot) => setDraft({ ...draft, slot })} loading={false} />
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
           <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" /> Back</Button>
           <Button onClick={onNext} disabled={!draft.slot}>Review booking <ArrowRight className="size-4" /></Button>

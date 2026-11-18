@@ -2,7 +2,7 @@ from django.db import models
 
 
 class Organization(models.Model):
-    """Multi-tenant company. Everything in SecureGate hangs off this."""
+    """Multi-tenant company. Everything in AdmitOne hangs off this."""
 
     name = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)

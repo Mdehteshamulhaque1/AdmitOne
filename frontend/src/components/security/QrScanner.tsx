@@ -173,7 +173,7 @@ export function QrScanner({ onScan, paused = false, cooldownMs = 2500, className
               status === "running" && !paused ? "bg-success animate-pulse" : "bg-muted-foreground/50",
             )}
           />
-          {status === "running" ? (paused ? "Paused" : "Live — point at a SecureGate pass") : "Camera off"}
+          {status === "running" ? (paused ? "Paused" : "Live — point at a AdmitOne pass") : "Camera off"}
         </span>
         {cameras.length > 1 && (
           <Button variant="ghost" size="sm" onClick={switchCamera}>

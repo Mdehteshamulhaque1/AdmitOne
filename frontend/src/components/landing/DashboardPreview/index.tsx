@@ -131,7 +131,7 @@ export function DashboardPreview() {
                 <span className="size-3 rounded-full bg-[#28c840]" />
               </div>
               <div className="mx-auto flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3.5 py-1.5 text-xs text-muted-foreground">
-                <Lock className="size-3 text-indigo-400" /> app.securegate.io/dashboard
+                <Lock className="size-3 text-indigo-400" /> app.admitone.io/dashboard
               </div>
               <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-indigo-400">
                 <span className="relative flex size-2">
@@ -153,7 +153,7 @@ export function DashboardPreview() {
                 <div className="flex items-center gap-2">
                   <Logo size={22} />
                   <span className="text-sm font-bold">
-                    Secure<span className="text-gradient">Gate</span>
+                    Admit<span className="text-gradient">One</span>
                   </span>
                 </div>
                 <div className="mt-6 space-y-1">

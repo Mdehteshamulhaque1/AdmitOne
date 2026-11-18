@@ -266,7 +266,7 @@ export function RegisterVisitPage() {
               {issued?.visitor.email && <Badge tone="info" size="sm" className="ml-2">Emailed</Badge>}
             </DialogDescription>
           </DialogHeader>
-          {issued && <PassCard visit={issued.visit} orgName={org?.name ?? "SecureGate"} />}
+          {issued && <PassCard visit={issued.visit} orgName={org?.name ?? "AdmitOne"} />}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIssued(null); setWalkIn(true) }}>Register another</Button>
             <Button onClick={() => { setIssued(null); navigate("/dashboard/security") }}>Go to gate</Button>

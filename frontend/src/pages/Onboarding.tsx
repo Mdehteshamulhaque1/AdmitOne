@@ -71,7 +71,7 @@ export function OnboardingPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold tracking-tight">Set up your workspace</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            SecureGate needs a workspace to scope visitors, buildings and approvals.
+            AdmitOne needs a workspace to scope visitors, buildings and approvals.
           </p>
         </div>
 

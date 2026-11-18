@@ -1,6 +1,6 @@
-# SecureGate — Supabase
+# AdmitOne — Supabase
 
-SecureGate uses Supabase **only** as a managed PostgreSQL host. It does **not**
+AdmitOne uses Supabase **only** as a managed PostgreSQL host. It does **not**
 use Supabase Auth, Storage, or the Supabase JS client — Django's own auth and
 migration system manage everything.
 
@@ -40,7 +40,7 @@ to build a fresh environment, run `python manage.py migrate` instead.
 ## Row Level Security (RLS)
 
 The Django backend connects to Supabase with the database owner / pooler role,
-which is a table owner, so Postgres RLS policies are bypassed. SecureGate enforces
+which is a table owner, so Postgres RLS policies are bypassed. AdmitOne enforces
 its own authorization (Django sessions + SimpleJWT + RBAC), so no RLS policies
 are required. If you later expose tables directly to Supabase's PostgREST API,
 enable RLS per table at that time.

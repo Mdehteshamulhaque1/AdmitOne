@@ -79,7 +79,7 @@ class EmailProvider:
 class WhatsAppProvider:
     """WhatsApp channel abstraction.
 
-    SecureGate ships WITHOUT a WhatsApp backend, so this provider is never
+    AdmitOne ships WITHOUT a WhatsApp backend, so this provider is never
     "configured" — code that calls it must treat that as an explicit, safe
     "WhatsApp provider not configured" outcome instead of pretending a
     message was sent.

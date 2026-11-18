@@ -1,7 +1,7 @@
 [project]
-name = "securegate-backend"
+name = "admitone-backend"
 version = "1.0.0"
-description = "SecureGate visitor and access management — Django + DRF backend."
+description = "AdmitOne — multi-tenant access-control platform with HMAC-signed single-use QR passes"
 requires-python = ">=3.11"
 # Runtime dependencies live in backend/requirements.txt (used by Render).
 

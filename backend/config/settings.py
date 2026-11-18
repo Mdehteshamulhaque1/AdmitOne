@@ -1,5 +1,5 @@
 """
-SecureGate - Enterprise Visitor & Access Management Platform.
+AdmitOne — multi-tenant access-control platform with HMAC-signed single-use QR passes.
 
 Django settings. Kept clean for a demoable MVP that can grow into the full spec.
 """

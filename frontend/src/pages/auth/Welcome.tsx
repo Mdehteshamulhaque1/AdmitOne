@@ -37,7 +37,7 @@ export function WelcomePage() {
     <div className="min-h-screen">
       <Background />
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" aria-label="SecureGate home"><LogoWordmark /></Link>
+        <Link to="/" aria-label="AdmitOne home"><LogoWordmark /></Link>
         <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
           {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>

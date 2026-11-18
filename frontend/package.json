@@ -1,7 +1,13 @@
 {
-  "name": "securegate-frontend",
+  "name": "admitone-frontend",
   "private": true,
   "version": "1.0.0",
+  "description": "AdmitOne \u2014 multi-tenant access-control platform with HMAC-signed single-use QR passes",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mdehteshamulhaque1/admitone.git",
+    "directory": "frontend"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.0.0 <23"

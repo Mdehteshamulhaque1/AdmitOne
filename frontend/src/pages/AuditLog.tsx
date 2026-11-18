@@ -104,7 +104,7 @@ export function AuditLogPage() {
           <div className="space-y-3 p-5">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : rows.length === 0 ? (
           <div className="p-5">
-            <EmptyState icon={<ScrollText className="size-6" />} title={hasFilters ? "No entries match" : "No activity recorded yet"} description={hasFilters ? "Try widening the date range." : "Actions will appear here as your team uses SecureGate."} />
+            <EmptyState icon={<ScrollText className="size-6" />} title={hasFilters ? "No entries match" : "No activity recorded yet"} description={hasFilters ? "Try widening the date range." : "Actions will appear here as your team uses AdmitOne."} />
           </div>
         ) : (
           <>

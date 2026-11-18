@@ -167,7 +167,7 @@ def send_qr_pass_email(visit):
     if not hasattr(visit, "qr_pass"):
         return DeliveryResult(skipped=True, reason="no_qr_pass")
 
-    subject = f"Your SecureGate QR pass for {visit.visit_date}"
+    subject = f"Your AdmitOne QR pass for {visit.visit_date}"
     html = render_to_string("visits/qr_pass_email.html", {"visit": visit})
 
     message = EmailMessage(

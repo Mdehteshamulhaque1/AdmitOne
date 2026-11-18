@@ -150,7 +150,7 @@ export function VisitorDrawer({
               )}
 
               {activePassVisit ? (
-                <PassCard visit={activePassVisit} orgName={org?.name ?? "SecureGate"} compact />
+                <PassCard visit={activePassVisit} orgName={org?.name ?? "AdmitOne"} compact />
               ) : (
                 <div className="rounded-2xl border border-dashed border-border px-4 py-3 text-center text-xs text-muted-foreground">
                   No active QR pass — an approved visit generates one automatically.

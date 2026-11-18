@@ -65,7 +65,7 @@ export function LogoWordmark({ className }: { className?: string }) {
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <Logo size={30} />
       <span className="text-lg font-bold tracking-tight">
-        Secure<span className="text-gradient">Gate</span>
+        Admit<span className="text-gradient">One</span>
       </span>
     </span>
   )

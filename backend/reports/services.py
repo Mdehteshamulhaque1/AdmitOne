@@ -198,7 +198,7 @@ def visit_csv_export(visits, period):
     """
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = (
-        f'attachment; filename="securegate-{period}-{timezone.localdate()}.csv"'
+        f'attachment; filename="admitone-{period}-{timezone.localdate()}.csv"'
     )
     response.write("\ufeff")  # UTF-8 BOM so Excel renders CJK correctly
     writer = csv.writer(response)
@@ -250,7 +250,7 @@ def audit_csv_export(logs, period="all"):
     """
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = (
-        f'attachment; filename="securegate-audit-{period}-{timezone.localdate()}.csv"'
+        f'attachment; filename="admitone-audit-{period}-{timezone.localdate()}.csv"'
     )
     response.write("\ufeff")  # UTF-8 BOM so Excel renders CJK correctly
     writer = csv.writer(response)

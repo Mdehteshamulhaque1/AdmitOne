@@ -39,7 +39,7 @@ export function Features() {
         <SectionHeading
           eyebrow="Everything you need"
           title="One platform. Every gate, desk and lobby."
-          description="SecureGate replaces paper registers, reception spreadsheets and scattered tools with a single, elegant system your whole company will actually use."
+          description="AdmitOne replaces paper registers, reception spreadsheets and scattered tools with a single, elegant system your whole company will actually use."
         />
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">

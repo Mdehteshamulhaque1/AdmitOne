@@ -42,7 +42,7 @@ export function Navbar() {
       )}
     >
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 lg:h-[72px] lg:px-8">
-        <a href="#top" aria-label="SecureGate home" className="shrink-0">
+        <a href="#top" aria-label="AdmitOne home" className="shrink-0">
           <LogoWordmark />
         </a>
 

@@ -1,4 +1,4 @@
-# SecureGate — Architecture & Design
+# AdmitOne — Architecture & Design
 
 ## 1. High-level architecture
 

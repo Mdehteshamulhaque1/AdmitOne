@@ -427,7 +427,7 @@ class ScanSerializer(serializers.Serializer):
             token, signature = token.strip(), signature.strip()
         if not token or not signature:
             raise serializers.ValidationError(
-                {"payload": "Scan a SecureGate QR pass (token|signature)."}
+                {"payload": "Scan an AdmitOne QR pass (token|signature)."}
             )
         attrs["token"] = token
         attrs["signature"] = signature

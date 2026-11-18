@@ -34,11 +34,11 @@ export function Footer() {
       <Container className="py-16">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_2fr]">
           <div>
-            <Link to="/" aria-label="SecureGate home" className="inline-flex">
+            <Link to="/" aria-label="AdmitOne home" className="inline-flex">
               <span className="flex items-center gap-2.5">
                 <Logo size={30} />
                 <span className="text-lg font-bold tracking-tight">
-                  Secure<span className="text-gradient">Gate</span>
+                  Admit<span className="text-gradient">One</span>
                 </span>
               </span>
             </Link>
@@ -88,7 +88,7 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-7 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} SecureGate, Inc. All rights reserved.
+            © {new Date().getFullYear()} AdmitOne, Inc. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             <a href="#" className="transition-colors hover:text-foreground">Privacy</a>

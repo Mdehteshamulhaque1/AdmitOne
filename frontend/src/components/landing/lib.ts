@@ -127,7 +127,7 @@ export const FAQS = [
   {
     question: "How does the QR check-in work?",
     answer:
-      "When a host approves a visit, SecureGate issues a cryptographically signed QR pass for that specific visit. The visitor shows it at the gate, security scans it, and the entry is verified, timestamped and logged instantly. No printing, no manual register.",
+      "When a host approves a visit, AdmitOne issues a cryptographically signed QR pass for that specific visit. The visitor shows it at the gate, security scans it, and the entry is verified, timestamped and logged instantly. No printing, no manual register.",
   },
   {
     question: "Is my visitor data secure?",
@@ -147,6 +147,6 @@ export const FAQS = [
   {
     question: "What about my existing tools?",
     answer:
-      "SecureGate provides a JWT-secured REST API used by the app itself, plus CSV exports of your full visit log for spreadsheets or BI tools. Exported data is always your actual visit records.",
+      "AdmitOne provides a JWT-secured REST API used by the app itself, plus CSV exports of your full visit log for spreadsheets or BI tools. Exported data is always your actual visit records.",
   },
 ] as const

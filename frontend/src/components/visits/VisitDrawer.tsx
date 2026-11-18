@@ -192,7 +192,7 @@ export function VisitDrawer({
               </div>
 
               {(visit.status === "APPROVED" || visit.status === "CHECKED_IN") && (
-                <PassCard visit={visit} orgName={org?.name ?? "SecureGate"} />
+                <PassCard visit={visit} orgName={org?.name ?? "AdmitOne"} />
               )}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

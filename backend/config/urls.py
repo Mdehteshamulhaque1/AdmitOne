@@ -4,6 +4,10 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.static import serve
 
+admin.site.site_header = "AdmitOne administration"
+admin.site.site_title = "AdmitOne admin"
+admin.site.index_title = "Workspace data"
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),

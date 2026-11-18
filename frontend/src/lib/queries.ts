@@ -406,7 +406,7 @@ export function useAuditActions() {
 }
 
 export async function exportAuditCsv(params: AuditLogParams = {}): Promise<void> {
-  const filename = `securegate-audit-${new Date().toISOString().slice(0, 10)}.csv`
+  const filename = `admitone-audit-${new Date().toISOString().slice(0, 10)}.csv`
   return downloadFile(`/api/audit-logs/${qs({ ...params, export: "csv" })}`, filename)
 }
 
@@ -450,6 +450,6 @@ export function useCreateOrganization() {
 export type ExportPeriod = "daily" | "weekly" | "monthly" | "all"
 
 export async function exportReportsCsv(period: ExportPeriod): Promise<void> {
-  const filename = `securegate-${period}-${new Date().toISOString().slice(0, 10)}.csv`
+  const filename = `admitone-${period}-${new Date().toISOString().slice(0, 10)}.csv`
   return downloadFile(`/api/reports/export/?period=${period}`, filename)
 }

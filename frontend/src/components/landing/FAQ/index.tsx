@@ -17,7 +17,7 @@ export function FAQ() {
         <SectionHeading
           eyebrow="Resources"
           title="Answers, before you ask."
-          description="Everything teams want to know before switching to SecureGate."
+          description="Everything teams want to know before switching to AdmitOne."
         />
 
         <div className="space-y-3">

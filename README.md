@@ -1,13 +1,15 @@
-# 🛡️ SecureGate
+# 🛡️ AdmitOne
+
+AdmitOne — multi-tenant access-control platform with HMAC-signed single-use QR passes
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/Secure_Gate/main/docs/securegate-logo.svg" alt="SecureGate Logo" width="96" />
+  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/admitone/main/docs/securegate-logo.svg" alt="AdmitOne Logo" width="96" />
 </p>
 
-<h1 align="center">SecureGate</h1>
+<h1 align="center">AdmitOne</h1>
 
 <p align="center">
-  <strong>Visitor Management & Secure Gate Access Platform</strong>
+  <strong>AdmitOne — multi-tenant access-control platform with HMAC-signed single-use QR passes</strong>
 </p>
 
 <p align="center">
@@ -15,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Mdehteshamulhaque1/Secure_Gate">
+  <a href="https://github.com/Mdehteshamulhaque1/admitone">
     <img src="https://img.shields.io/badge/GitHub-Repository-181717?style=flat-square&logo=github" alt="GitHub">
   </a>
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11">
@@ -28,14 +30,14 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/Secure_Gate/main/docs/securegate-workflow.svg" alt="SecureGate Workflow" width="900" />
+  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/admitone/main/docs/securegate-workflow.svg" alt="AdmitOne Workflow" width="900" />
 </p>
 
 ---
 
-## ✨ What is SecureGate?
+## ✨ What is AdmitOne?
 
-SecureGate is a full-stack visitor and gate-access management system built around a controlled visitor lifecycle:
+AdmitOne is a full-stack visitor and gate-access management system built around a controlled visitor lifecycle:
 
 **Register → Approve → Issue QR → Verify → Check In → Check Out → Audit**
 
@@ -126,7 +128,7 @@ The QR encodes:
 token | signature
 ```
 
-At verification time SecureGate checks:
+At verification time AdmitOne checks:
 
 1. The token exists.
 2. The signature matches the server-generated HMAC.
@@ -183,7 +185,7 @@ A successful QR check-in marks the pass as used inside the same transaction that
 ## 🏗️ Architecture
 
 ```text
-                           SecureGate
+                           AdmitOne
                                │
               ┌────────────────┴────────────────┐
               │                                 │
@@ -399,7 +401,7 @@ Workflow transitions are protected with database transactions and `select_for_up
 
 ## 👥 RBAC
 
-SecureGate uses three primary roles.
+AdmitOne uses three primary roles.
 
 | Role | Main capabilities |
 |---|---|
@@ -624,7 +626,7 @@ The codebase includes several practical optimizations:
 ## 📁 Repository structure
 
 ```text
-Secure_Gate/
+admitone/
 ├── backend/
 │   ├── accounts/
 │   ├── api/
@@ -766,8 +768,8 @@ SQLite is supported as the local fallback when `DATABASE_URL` is not supplied.
 ### 1. Clone
 
 ```bash
-git clone https://github.com/Mdehteshamulhaque1/Secure_Gate.git
-cd Secure_Gate
+git clone https://github.com/Mdehteshamulhaque1/admitone.git
+cd admitone
 ```
 
 ### 2. Backend
@@ -838,7 +840,7 @@ npm run dev
 
 ## 🌐 Deployment
 
-SecureGate's repository contains deployment configuration for:
+AdmitOne's repository contains deployment configuration for:
 
 ### Backend — Render
 
@@ -916,7 +918,7 @@ For production, keep secrets out of Git and configure them in the hosting provid
 
 ## 📧 QR email delivery
 
-When a visit is approved, SecureGate can generate an HTML email containing the QR pass.
+When a visit is approved, AdmitOne can generate an HTML email containing the QR pass.
 
 The email flow is intentionally non-blocking:
 
@@ -1002,7 +1004,7 @@ Future extension areas include QR re-issue/self-service for expired passes, opti
 
 ## 📌 Why this project matters
 
-SecureGate demonstrates practical full-stack engineering beyond basic CRUD:
+AdmitOne demonstrates practical full-stack engineering beyond basic CRUD:
 
 ```text
 Authentication
@@ -1039,7 +1041,7 @@ Computer Science & Engineering
 ---
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/Secure_Gate/main/docs/securegate-logo.svg" alt="SecureGate" width="58" />
+  <img src="https://raw.githubusercontent.com/Mdehteshamulhaque1/admitone/main/docs/securegate-logo.svg" alt="AdmitOne" width="58" />
 </p>
 
 <p align="center">

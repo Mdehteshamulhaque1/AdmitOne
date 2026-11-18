@@ -156,11 +156,11 @@ export function Sidebar({
       aria-label="Primary"
     >
       <div className={cn("flex h-16 items-center border-b border-border", collapsed ? "justify-center px-0" : "px-5")}>
-        <NavLink to="/dashboard" className="flex items-center gap-2.5" aria-label="SecureGate dashboard">
+        <NavLink to="/dashboard" className="flex items-center gap-2.5" aria-label="AdmitOne dashboard">
           <Logo size={32} />
           {!collapsed && (
             <span className="text-lg font-bold tracking-tight">
-              Secure<span className="text-gradient">Gate</span>
+              Admit<span className="text-gradient">One</span>
             </span>
           )}
         </NavLink>

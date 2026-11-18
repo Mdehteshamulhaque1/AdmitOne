@@ -1,4 +1,4 @@
-# SecureGate — Deployment Guide (Vercel + Render + Supabase PostgreSQL)
+# AdmitOne — Deployment Guide (Vercel + Render + Supabase PostgreSQL)
 
 This app has 3 pieces:
 
@@ -25,7 +25,7 @@ Everything is connected with environment variables (values you paste into each s
 
 1. Go to <https://supabase.com> → **Start your project** → sign in with GitHub.
 2. Click **New project**.
-   - **Project name**: `SecureGate`
+   - **Project name**: `AdmitOne`
    - **Database password**: create one using **only letters and numbers**
      (avoids URL problems — no `@`, `/`, `:`, `+`). Save it somewhere safe.
    - **Region**: pick the closest one to you.
@@ -50,8 +50,8 @@ Expected result: a Supabase project with nothing in the database yet (you migrat
 ## 2. Deploy the backend on Render  (REQUIRED)
 
 1. Go to <https://render.com> → **Get Started** → sign in with GitHub → **Authorize**.
-   (In GitHub settings, make sure the `Secure_Gate` repo is visible to Render.)
-2. Click **New +** (top-right) → **Web Service** → connect the `Secure_Gate` repository.
+   (In GitHub settings, make sure the `admitone` repo is visible to Render.)
+2. Click **New +** (top-right) → **Web Service** → connect the `admitone` repository.
 3. Fill in:
    - **Branch**: `main`
    - **Name**: `securegate-api` → this becomes your URL:
@@ -128,7 +128,7 @@ The Supabase database now has all tables.
 ## 4. Deploy the frontend on Vercel  (REQUIRED)
 
 1. Go to <https://vercel.com> → sign in with GitHub → **Add New…** → **Project**.
-2. Import the `Secure_Gate` repository.
+2. Import the `admitone` repository.
 3. Leave the defaults (Vercel auto-detects **Vite**):
    - Build Command: `npm run build`
    - Output Directory: `dist`

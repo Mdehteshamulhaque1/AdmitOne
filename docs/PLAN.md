@@ -1,13 +1,13 @@
-# SecureGate — Visitor Management System (PLAN)
+# AdmitOne — Visitor Management System (PLAN)
 
-> Single source of truth for what SecureGate is, how it is built, what is left to
+> Single source of truth for what AdmitOne is, how it is built, what is left to
 > build, and how we know it is done.
 
 ---
 
 ## 1. What the project is
 
-**SecureGate** is a visitor management system ("gate pass" SaaS) that lets an
+**AdmitOne** is a visitor management system ("gate pass" SaaS) that lets an
 organization:
 
 - **Pre-register visitors** before they arrive (name, phone, company, ID
@@ -76,7 +76,7 @@ It is a full-stack web app:
 ## 3. Current codebase structure
 
 ```
-Secure_Gate-main/
+admitone/
 ├── backend/                      # Django project (Render root directory)
 │   ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 │   ├── accounts/                 # Custom User (email login), RBAC roles, lockout
@@ -153,7 +153,7 @@ Secure_Gate-main/
 | `CSRF_TRUSTED_ORIGINS` | Render | Same |
 | `EMAIL_HOST_USER` | Render | Gmail address (unset = console backend) |
 | `EMAIL_HOST_PASSWORD` | Render | Gmail **App Password** (not the login password) |
-| `DEFAULT_FROM_EMAIL` | Render | `SecureGate <email>` |
+| `DEFAULT_FROM_EMAIL` | Render | `AdmitOne <email>` |
 | `VITE_API_BASE_URL` | Vercel | REQUIRED; your deployed Render backend URL, no trailing slash |
 
 ---
@@ -302,7 +302,7 @@ Secure_Gate-main/
 
 ## 10. Definition of done
 
-SecureGate is **done** when:
+AdmitOne is **done** when:
 
 1. A new user can sign up and (via UI) create an organization with a
    building and default host — no admin/seed step required. ✅ (Done — verified

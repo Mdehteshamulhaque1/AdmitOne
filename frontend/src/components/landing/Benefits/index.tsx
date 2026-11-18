@@ -20,7 +20,7 @@ export function Benefits() {
         <div>
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300 backdrop-blur-sm">
-              <span className="size-1.5 rounded-full bg-indigo-400 shadow-glow" /> Why SecureGate
+              <span className="size-1.5 rounded-full bg-indigo-400 shadow-glow" /> Why AdmitOne
             </span>
           </Reveal>
           <Reveal delay={0.08}>
@@ -31,7 +31,7 @@ export function Benefits() {
           </Reveal>
           <Reveal delay={0.16}>
             <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-              Every minute your front desk spends on clipboards is a minute lost. SecureGate automates
+              Every minute your front desk spends on clipboards is a minute lost. AdmitOne automates
               the entire visitor journey so your people can focus on the work that matters.
             </p>
           </Reveal>

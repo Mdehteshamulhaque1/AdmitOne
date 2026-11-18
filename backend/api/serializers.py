@@ -202,6 +202,7 @@ class VisitorSerializer(serializers.ModelSerializer):
         model = Visitor
         fields = [
             "id", "full_name", "phone", "email", "company", "designation", "address",
+            "category", "state", "university", "qualification", "passing_year",
             "photo", "document_type", "document_number", "vehicle_number", "vehicle_type",
             "emergency_contact", "emergency_phone", "special_notes", "is_blacklisted",
             "blacklist_reason", "visit_count", "last_visit_at", "created_at",
@@ -302,12 +303,18 @@ class VisitSerializer(serializers.ModelSerializer):
     visit_type_label = serializers.CharField(source="get_visit_type_display", read_only=True)
     qr = QRPassSerializer(source="qr_pass", read_only=True)
     duration_minutes = serializers.IntegerField(read_only=True)
+    floor_name = serializers.CharField(source="floor.name", read_only=True, default="")
+    room_label = serializers.CharField(source="room.label", read_only=True, default="")
+    room_number = serializers.CharField(source="room.number", read_only=True, default="")
+    attendance_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Visit
         fields = [
             "id", "visit_id", "visitor", "host", "host_name",
-            "building", "building_name", "department_name", "purpose",
+            "building", "building_name", "floor", "floor_name",
+            "room", "room_label", "room_number", "attendance_count",
+            "department_name", "purpose", "visitor_category",
             "visit_type", "visit_type_label", "source", "visit_date",
             "expected_arrival", "expected_exit", "status", "qr", "duration_minutes",
             "registered_at", "approved_at", "rejected_at", "rejection_reason",
@@ -316,6 +323,11 @@ class VisitSerializer(serializers.ModelSerializer):
             "checked_out_by_name", "notes",
         ]
         read_only_fields = fields
+
+    def get_attendance_count(self, obj):
+        # Annotated by the viewset for lists; fall back to a count otherwise.
+        value = getattr(obj, "attendance_total", None)
+        return value if value is not None else obj.attendance.count()
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -388,6 +400,8 @@ class VisitorFacingVisitSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True, default="")
     building_name = serializers.CharField(source="building.name", read_only=True, default="")
     floor_name = serializers.CharField(source="floor.name", read_only=True, default="")
+    room_label = serializers.CharField(source="room.label", read_only=True, default="")
+    room_number = serializers.CharField(source="room.number", read_only=True, default="")
     organization_name = serializers.CharField(source="organization.name", read_only=True, default="")
     phone_masked = serializers.SerializerMethodField()
     qr = serializers.SerializerMethodField()
@@ -405,6 +419,7 @@ class VisitorFacingVisitSerializer(serializers.ModelSerializer):
             "source",
             "visit_type",
             "visit_type_label",
+            "visitor_category",
             "purpose",
             "visit_date",
             "expected_arrival",
@@ -413,6 +428,8 @@ class VisitorFacingVisitSerializer(serializers.ModelSerializer):
             "department_name",
             "building_name",
             "floor_name",
+            "room_label",
+            "room_number",
             "host_name",
             "host_designation",
             "phone_masked",
@@ -491,7 +508,10 @@ class BookingSubmitSerializer(serializers.Serializer):
     """
 
     visitor = BookingVisitorSerializer()
-    visit_type = serializers.ChoiceField(choices=VisitType.choices)
+    # Either a catalogue ``category`` (visit type derived from the purpose) or
+    # a legacy static ``visit_type``; ``create_pre_booking`` enforces which.
+    category = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    visit_type = serializers.ChoiceField(choices=VisitType.choices, required=False, allow_blank=True)
     department = serializers.IntegerField(required=False, allow_null=True)
     building = serializers.IntegerField(required=False, allow_null=True)
     floor = serializers.IntegerField(required=False, allow_null=True)

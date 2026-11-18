@@ -9,6 +9,27 @@ from visits.models import VisitType
 
 from .serializers import PublicBuildingSerializer, VisitorFacingVisitSerializer
 
+_PROFILE_FIELD_KW = dict(required=False, allow_blank=True)
+
+
+class _VisitorProfileFieldsMixin(serializers.Serializer):
+    """Training-centre profile shared by sign-up and profile edits.
+
+    Free text on the wire (the SPA offers dropdowns, with "Other" allowing a
+    typed value) so a workspace can change its lists without an API change.
+    """
+
+    category = serializers.CharField(max_length=40, **_PROFILE_FIELD_KW)
+    state = serializers.CharField(max_length=80, **_PROFILE_FIELD_KW)
+    university = serializers.CharField(max_length=200, **_PROFILE_FIELD_KW)
+    qualification = serializers.CharField(max_length=120, **_PROFILE_FIELD_KW)
+    passing_year = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1950, max_value=2100
+    )
+
+    def validate_category(self, value):
+        return (value or "").strip().upper()
+
 
 def _validate_password(value):
     try:
@@ -18,7 +39,7 @@ def _validate_password(value):
     return value
 
 
-class VisitorRegisterSerializer(serializers.Serializer):
+class VisitorRegisterSerializer(_VisitorProfileFieldsMixin):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
     full_name = serializers.CharField(max_length=150)
@@ -47,7 +68,7 @@ class VisitorLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
-class VisitorProfileSerializer(serializers.Serializer):
+class VisitorProfileSerializer(_VisitorProfileFieldsMixin):
     full_name = serializers.CharField(max_length=150, required=False)
     phone = serializers.CharField(max_length=20, required=False)
     company = serializers.CharField(max_length=150, required=False, allow_blank=True)
@@ -82,7 +103,10 @@ class VisitorBookingSerializer(serializers.Serializer):
     """Booking submitted by a signed-in visitor; identity comes from the account."""
 
     organization = serializers.SlugField(max_length=80)
-    visit_type = serializers.ChoiceField(choices=VisitType.choices)
+    # Catalogue path (``category`` + ``purpose``) or legacy ``visit_type``;
+    # when neither is sent the account's own category is used.
+    category = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    visit_type = serializers.ChoiceField(choices=VisitType.choices, required=False, allow_blank=True)
     department = serializers.IntegerField(required=False, allow_null=True)
     building = serializers.IntegerField(required=False, allow_null=True)
     floor = serializers.IntegerField(required=False, allow_null=True)

@@ -22,7 +22,7 @@ from visits.models import QRPass, Visit, VisitSource, VisitStatus, VisitType, Vi
 
 from .availability import host_blocks_for, intervals_overlap, validate_booking_slot
 from .emails import send_qr_pass_email
-from .purposes import OTHER_LABEL, PURPOSE_OTHER_MAX, purposes_for
+from .purposes import OTHER_LABEL, PURPOSE_OTHER_MAX, purposes_for, purposes_for_category
 from .reminders import (
     cancel_visit_reminders,
     reschedule_visit_reminders,
@@ -523,8 +523,17 @@ def create_pre_booking(
     purpose_other="",
     notes="",
     audit_ip=None,
+    category=None,
 ):
     """Public, pre-arrival booking for an anonymous visitor.
+
+    Two ways to describe the visit:
+
+    * ``category`` + ``purpose`` -- the workspace catalogue
+      (``visits.purposes.catalogue_for``): the visitor picks who they are and
+      what they are coming for from dropdowns; ``visit_type`` is derived from
+      the chosen purpose.
+    * ``visit_type`` + ``purpose`` -- the legacy static lists.
 
     Creates a ``PENDING``, ``PUBLIC_BOOKING`` visit (never auto-approved, no
     QR issued). Every relationship is validated org-scoped server-side — a
@@ -536,13 +545,32 @@ def create_pre_booking(
     if org_id is None:
         return None, False, {"detail": "Organization not found."}
 
-    visit_type = str(visit_type or "").strip()
-    if visit_type not in VisitType.values:
-        return None, False, {
-            "detail": {"visit_type": ["Please choose a valid visit type."]}
-        }
-
     purpose = str(purpose or "").strip()
+    category_key = str(category or "").strip().upper()
+    if category_key:
+        # Catalogue path: the (category, purpose) pair must exist for this
+        # workspace; the visit type comes from the catalogue entry.
+        from .purposes import resolve_purpose
+
+        entry = resolve_purpose(org, category_key, purpose)
+        if entry is None:
+            if purposes_for_category(org, category_key) is None:
+                return None, False, {
+                    "detail": {"category": ["Please choose a valid visitor category."]}
+                }
+            return None, False, {
+                "detail": {"purpose": ["Purpose is not valid for the selected visitor category."]}
+            }
+        visit_type = entry["visit_type"]
+        allowed_purposes = [p["label"] for p in purposes_for_category(org, category_key)]
+    else:
+        visit_type = str(visit_type or "").strip()
+        if visit_type not in VisitType.values:
+            return None, False, {
+                "detail": {"visit_type": ["Please choose a valid visit type."]}
+            }
+        allowed_purposes = purposes_for(visit_type)
+
     if purpose == OTHER_LABEL:
         purpose_text = str(purpose_other or "").strip()
         if not purpose_text:
@@ -559,7 +587,7 @@ def create_pre_booking(
                     ]
                 }
             }
-    elif purpose in purposes_for(visit_type):
+    elif purpose in allowed_purposes:
         purpose_text = purpose
     else:
         return None, False, {
@@ -713,6 +741,7 @@ def create_pre_booking(
             floor=floor,
             department=department,
             visit_type=visit_type,
+            visitor_category=category_key,
             source=VisitSource.PUBLIC_BOOKING,
             purpose=purpose_text,
             notes=str(notes or ""),
@@ -1052,3 +1081,92 @@ def remove_blacklist(visitor, actor, *, audit_ip=None):
             organization_id=visitor.organization_id,
         )
     return True, f"{visitor.full_name} removed from the blacklist."
+
+
+# ---------------------------------------------------------------------------
+# Rooms: assignment on approval and attendance scans at the door.
+# ---------------------------------------------------------------------------
+
+_ROOM_ASSIGNABLE_STATUSES = (VisitStatus.PENDING, VisitStatus.APPROVED, VisitStatus.CHECKED_IN)
+
+
+def assign_room(visit, actor, room_id, *, audit_ip=None):
+    """Point a visit at a room (and therefore its floor and building).
+
+    ``room_id`` may be ``None`` to clear the assignment. The room must belong
+    to the visit's workspace. Returns ``(ok, message)``.
+    """
+    from visits.models import Room
+
+    if not _user_allowed(actor, visit):
+        return False, "You do not have access to this visit."
+    room = None
+    if room_id:
+        room = (
+            Room.objects.select_related("building", "floor")
+            .filter(pk=room_id, building__organization_id=visit.organization_id, is_active=True)
+            .first()
+        )
+        if room is None:
+            return False, "Choose a room that belongs to this workspace."
+    with transaction.atomic():
+        locked = Visit.objects.select_for_update().get(pk=visit.pk)
+        if locked.status not in _ROOM_ASSIGNABLE_STATUSES:
+            return False, f"Cannot assign a room: visit is {locked.status}."
+        locked.room = room
+        fields = ["room"]
+        if room is not None:
+            locked.building = room.building
+            locked.floor = room.floor
+            fields += ["building", "floor"]
+        locked.save(update_fields=fields)
+        log_visit_event(
+            actor,
+            "Room assigned" if room else "Room cleared",
+            locked,
+            extra=f"| room {room.label}" if room else "",
+            ip=audit_ip,
+        )
+    return True, f"Room set to {room.label}." if room else "Room assignment cleared."
+
+
+def record_room_attendance(visit, room, officer, *, note="", audit_ip=None):
+    """Record that the visitor's pass was scanned at ``room``.
+
+    Requires the visit to be CHECKED_IN (the visitor passed the gate today)
+    and the room to belong to the same workspace. Repeated scans are allowed
+    -- a student attends several rooms in a day -- but the same room within a
+    minute is treated as a double tap and reported, not duplicated.
+    Returns ``(attendance_or_None, ok, message)``.
+    """
+    from visits.models import RoomAttendance
+
+    if not _user_allowed(officer, visit):
+        return None, False, "You do not have access to this visit."
+    if room.building.organization_id != visit.organization_id:
+        return None, False, "That room belongs to another workspace."
+    if not room.is_active:
+        return None, False, "That room is not in use."
+    if visit.status != VisitStatus.CHECKED_IN:
+        return None, False, (
+            f"Visit is {visit.status}, not checked in. The visitor must pass the gate first."
+        )
+    now = timezone.now()
+    recent = (
+        RoomAttendance.objects.filter(visit=visit, room=room, scanned_at__gte=now - timezone.timedelta(minutes=1))
+        .first()
+    )
+    if recent is not None:
+        return recent, False, f"Already recorded at {room.label} a moment ago."
+    with transaction.atomic():
+        entry = RoomAttendance.objects.create(
+            visit=visit, room=room, scanned_by=officer, note=str(note or "")[:200]
+        )
+        log_visit_event(
+            officer,
+            "Room attendance recorded",
+            visit,
+            extra=f"| room {room.label}",
+            ip=audit_ip,
+        )
+    return entry, True, f"{visit.visitor.full_name} recorded at {room.label}."

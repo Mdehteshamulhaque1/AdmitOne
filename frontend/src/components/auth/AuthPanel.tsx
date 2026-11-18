@@ -5,8 +5,18 @@ import { Alert } from "@/components/ui/Alert"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Field } from "@/components/widgets/Field"
+import { OptionSelect } from "@/components/widgets/OptionSelect"
 import { useAuth } from "@/lib/auth"
+import {
+  DEFAULT_VISITOR_CATEGORIES,
+  INDIAN_STATES,
+  PASSING_YEARS,
+  QUALIFICATIONS,
+  UNIVERSITIES,
+  toOptions,
+} from "@/lib/student-options"
 import { formatApiError } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useVisitorLogin, useVisitorRegister } from "@/lib/visitor-api"
@@ -52,16 +62,36 @@ const ROLE_COPY: Record<AuthRole, { title: string; blurb: string; icon: typeof U
   },
 }
 
+const STATE_OPTIONS = toOptions(INDIAN_STATES)
+const UNIVERSITY_OPTIONS = toOptions(UNIVERSITIES)
+const QUALIFICATION_OPTIONS = toOptions(QUALIFICATIONS)
+
+const EMPTY_FORM = {
+  email: "",
+  password: "",
+  full_name: "",
+  phone: "",
+  company: "",
+  designation: "",
+  category: "STUDENT",
+  state: "",
+  university: "",
+  qualification: "",
+  passing_year: "",
+}
+type FormState = typeof EMPTY_FORM
+
 export function AuthPanel({ role, onRoleChange, initialMode = "register", onSignedIn, compact }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [show, setShow] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [form, setForm] = useState({ email: "", password: "", full_name: "", phone: "", company: "" })
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((f) => ({ ...f, [k]: e.target.value }))
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const setValue = (k: keyof FormState, value: string) => {
+    setForm((f) => ({ ...f, [k]: value }))
     setErrors((er) => ({ ...er, [k]: "", _: "" }))
   }
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => setValue(k, e.target.value)
 
   const staff = useAuth()
   const visitorLogin = useVisitorLogin()
@@ -74,6 +104,8 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
     setCreated(null)
   }, [role])
 
+  const isStudent = form.category === "STUDENT"
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
@@ -81,7 +113,19 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
       if (mode === "register") {
         // Create the account first; the person then signs in explicitly.
         if (role === "visitor") {
-          await visitorRegister.mutateAsync({ ...form })
+          await visitorRegister.mutateAsync({
+            email: form.email,
+            password: form.password,
+            full_name: form.full_name,
+            phone: form.phone,
+            company: isStudent ? "" : form.company,
+            designation: isStudent ? "" : form.designation,
+            category: form.category,
+            state: form.state,
+            university: isStudent ? form.university : "",
+            qualification: isStudent ? form.qualification : "",
+            passing_year: isStudent && form.passing_year ? Number(form.passing_year) : null,
+          })
           // registration returns a session; drop it so the sign-in step is explicit
           const { clearVisitorToken } = await import("@/lib/visitor-api")
           clearVisitorToken()
@@ -169,7 +213,7 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
         <p className="mt-1 text-sm text-muted-foreground">
           {mode === "register"
             ? role === "visitor"
-              ? "Step 1 of 2. After creating the account you sign in, then fill in your visit details."
+              ? "Step 1 of 2. Tell us who you are once; every booking after this is a few taps."
               : "Step 1 of 2. After creating the account you sign in, then set up or join your organisation."
             : "Step 2 of 2. Use the email and password you just created."}
         </p>
@@ -189,6 +233,16 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
         <form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2" noValidate>
           {mode === "register" && (
             <>
+              {role === "visitor" && (
+                <Field id="a-cat" label="I am a" required error={errors.category} className="sm:col-span-2">
+                  <Select value={form.category} onValueChange={(v) => setValue("category", v)}>
+                    <SelectTrigger id="a-cat"><SelectValue placeholder="Choose one" /></SelectTrigger>
+                    <SelectContent>
+                      {DEFAULT_VISITOR_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
               <Field id="a-name" label="Full name" required error={errors.full_name}>
                 <Input id="a-name" value={form.full_name} onChange={set("full_name")} autoComplete="name" />
               </Field>
@@ -196,9 +250,38 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
                 <Input id="a-phone" inputMode="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" />
               </Field>
               {role === "visitor" && (
-                <Field id="a-company" label="Company" className="sm:col-span-2" error={errors.company}>
-                  <Input id="a-company" value={form.company} onChange={set("company")} autoComplete="organization" />
-                </Field>
+                <>
+                  <Field id="a-state" label="Home state" error={errors.state} className={isStudent ? "" : "sm:col-span-2"}>
+                    <OptionSelect id="a-state" value={form.state} onChange={(v) => setValue("state", v)} options={STATE_OPTIONS} placeholder="Choose your state" allowOther otherPlaceholder="State or country" />
+                  </Field>
+                  {isStudent ? (
+                    <>
+                      <Field id="a-uni" label="University / college" error={errors.university}>
+                        <OptionSelect id="a-uni" value={form.university} onChange={(v) => setValue("university", v)} options={UNIVERSITY_OPTIONS} placeholder="Choose your university" allowOther otherPlaceholder="Name of your university or college" />
+                      </Field>
+                      <Field id="a-qual" label="Qualification / background" error={errors.qualification}>
+                        <OptionSelect id="a-qual" value={form.qualification} onChange={(v) => setValue("qualification", v)} options={QUALIFICATION_OPTIONS} placeholder="Choose your degree" allowOther otherPlaceholder="e.g. B.Sc Physics" />
+                      </Field>
+                      <Field id="a-year" label="Passing year" error={errors.passing_year} hint="Final-year students: pick next year.">
+                        <Select value={form.passing_year} onValueChange={(v) => setValue("passing_year", v)}>
+                          <SelectTrigger id="a-year"><SelectValue placeholder="Year" /></SelectTrigger>
+                          <SelectContent>
+                            {PASSING_YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </>
+                  ) : (
+                    <>
+                      <Field id="a-company" label={form.category === "PARENT" ? "Student's name (if visiting for them)" : "Company / organisation"} error={errors.company}>
+                        <Input id="a-company" value={form.company} onChange={set("company")} autoComplete="organization" />
+                      </Field>
+                      <Field id="a-desig" label={form.category === "PARENT" ? "Relationship" : "Designation"} error={errors.designation}>
+                        <Input id="a-desig" value={form.designation} onChange={set("designation")} autoComplete="organization-title" placeholder={form.category === "PARENT" ? "e.g. Father" : "e.g. HR Manager"} />
+                      </Field>
+                    </>
+                  )}
+                </>
               )}
             </>
           )}

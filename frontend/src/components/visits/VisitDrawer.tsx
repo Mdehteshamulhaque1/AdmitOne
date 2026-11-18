@@ -6,6 +6,9 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  DoorOpen,
+  GraduationCap,
+  Layers,
   LogIn,
   LogOut,
   Mail,
@@ -23,17 +26,21 @@ import { Separator } from "@/components/ui/Separator"
 import { Skeleton } from "@/components/ui/Skeleton"
 import { ConfirmDialog } from "@/components/widgets/ConfirmDialog"
 import { StatusChip } from "@/components/widgets/StatusChip"
+import { AssignRoomDialog } from "@/components/visits/AssignRoomDialog"
 import { PassCard } from "@/components/visits/PassCard"
 import { useAuth } from "@/lib/auth"
 import {
   useApproveVisit,
+  useAssignRoom,
   useCancelVisit,
   useCheckIn,
   useCheckOut,
   useReissuePass,
   useRejectVisit,
   useVisit,
+  useVisitAttendance,
 } from "@/lib/queries"
+import { categoryLabel } from "@/lib/student-options"
 import { VISIT_SOURCE_LABELS, formatApiError, type Visit } from "@/lib/types"
 import { formatClock, formatDate, formatDateTime, formatDuration } from "@/lib/utils"
 
@@ -103,7 +110,10 @@ export function VisitDrawer({
   const checkOut = useCheckOut()
   const reissue = useReissuePass()
   const cancel = useCancelVisit()
+  const assignRoom = useAssignRoom()
+  const attendance = useVisitAttendance(open && visit ? visit.id : null)
   const [confirm, setConfirm] = useState<"reject" | "cancel" | "checkin" | null>(null)
+  const [roomDialog, setRoomDialog] = useState<"approve" | "assign" | null>(null)
 
   const run = async (label: string, fn: () => Promise<{ detail: string }>) => {
     try {
@@ -115,7 +125,8 @@ export function VisitDrawer({
     }
   }
 
-  const busy = approve.isPending || reject.isPending || checkIn.isPending || checkOut.isPending || reissue.isPending || cancel.isPending
+  const busy = approve.isPending || reject.isPending || checkIn.isPending || checkOut.isPending || reissue.isPending || cancel.isPending || assignRoom.isPending
+  const canAssignRoom = visit !== null && ["PENDING", "APPROVED", "CHECKED_IN"].includes(visit.status) && can("approve_visitor")
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -146,8 +157,14 @@ export function VisitDrawer({
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {[visit.visitor.company, visit.visitor.designation].filter(Boolean).join(" · ") || "Independent visitor"}
+                    {[visit.visitor.company, visit.visitor.designation].filter(Boolean).join(" · ") || (visit.visitor_category ? categoryLabel(visit.visitor_category) : "Independent visitor")}
                   </p>
+                  {(visit.visitor.university || visit.visitor.qualification || visit.visitor.state) && (
+                    <p className="mt-0.5 flex items-start gap-1 text-xs text-muted-foreground">
+                      <GraduationCap className="mt-0.5 size-3 shrink-0" />
+                      <span>{[visit.visitor.qualification, visit.visitor.passing_year ? `batch ${visit.visitor.passing_year}` : "", visit.visitor.university, visit.visitor.state].filter(Boolean).join(" · ")}</span>
+                    </p>
+                  )}
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1"><Phone className="size-3" /> {visit.visitor.phone}</span>
                     {visit.visitor.email && (
@@ -161,7 +178,7 @@ export function VisitDrawer({
               <div className="flex flex-wrap gap-2">
                 {visit.status === "PENDING" && can("approve_visitor") && (
                   <>
-                    <Button size="sm" disabled={busy} loading={approve.isPending} onClick={() => run("Visit approved", () => approve.mutateAsync(visit.id))}>
+                    <Button size="sm" disabled={busy} loading={approve.isPending} onClick={() => setRoomDialog("approve")}>
                       <CheckCircle2 className="size-4" /> Approve
                     </Button>
                     <Button size="sm" variant="outline" className="border-danger/30 text-danger hover:bg-danger-soft" disabled={busy} onClick={() => setConfirm("reject")}>
@@ -184,6 +201,11 @@ export function VisitDrawer({
                     <RefreshCw className="size-4" /> Re-issue pass
                   </Button>
                 )}
+                {canAssignRoom && (
+                  <Button size="sm" variant="outline" disabled={busy} loading={assignRoom.isPending} onClick={() => setRoomDialog("assign")}>
+                    <DoorOpen className="size-4" /> {visit.room ? "Change room" : "Assign room"}
+                  </Button>
+                )}
                 {(visit.status === "PENDING" || visit.status === "APPROVED") && (can("approve_visitor") || can("create_visitor")) && (
                   <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-danger" disabled={busy} onClick={() => setConfirm("cancel")}>
                     Cancel visit
@@ -196,11 +218,12 @@ export function VisitDrawer({
               )}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Row icon={<MessageSquareText className="size-4" />} label="Purpose" value={visit.purpose} />
+                <Row icon={<MessageSquareText className="size-4" />} label="Purpose" value={visit.visitor_category ? `${visit.purpose} · ${categoryLabel(visit.visitor_category)}` : visit.purpose} />
                 <Row icon={<CalendarDays className="size-4" />} label="Visit date" value={formatDate(visit.visit_date)} />
                 <Row icon={<Clock className="size-4" />} label="Expected window" value={`${formatClock(visit.expected_arrival)} – ${formatClock(visit.expected_exit)}`} />
                 <Row icon={<UserRound className="size-4" />} label="Host" value={visit.host_name} />
-                <Row icon={<Building className="size-4" />} label="Building" value={visit.building_name} />
+                <Row icon={<Building className="size-4" />} label="Building" value={[visit.building_name, visit.floor_name].filter(Boolean).join(" · ")} />
+                <Row icon={<DoorOpen className="size-4" />} label="Room" value={visit.room_label || (canAssignRoom ? "Not assigned yet" : "")} />
                 <Row icon={<Clock className="size-4" />} label="Time on site" value={formatDuration(visit.duration_minutes)} />
               </div>
               {visit.notes && (
@@ -212,6 +235,32 @@ export function VisitDrawer({
 
               <Separator />
               <div>
+                <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Layers className="size-3.5" /> Room attendance{attendance.data ? ` · ${attendance.data.length}` : ""}
+                </h4>
+                {attendance.isLoading ? (
+                  <Skeleton className="h-12 w-full" />
+                ) : !attendance.data || attendance.data.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No room scans yet. Once the visitor is checked in at the gate, a trainer scans their pass at each room door.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border rounded-xl border border-border text-sm">
+                    {attendance.data.map((a) => (
+                      <li key={a.id} className="flex items-center gap-3 px-3 py-2">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><DoorOpen className="size-3.5" /></span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{a.room_label}</div>
+                          <div className="truncate text-xs text-muted-foreground">{a.building_name}{a.scanned_by_name ? ` · scanned by ${a.scanned_by_name}` : ""}{a.note ? ` · ${a.note}` : ""}</div>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(a.scanned_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <Separator />
+              <div>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Timeline</h4>
                 <Timeline visit={visit} />
               </div>
@@ -221,6 +270,21 @@ export function VisitDrawer({
 
         {visit && (
           <>
+            <AssignRoomDialog
+              visit={visit}
+              open={roomDialog !== null}
+              onOpenChange={(o) => !o && setRoomDialog(null)}
+              mode={roomDialog ?? "assign"}
+              loading={approve.isPending || assignRoom.isPending}
+              onConfirm={async (room) => {
+                if (roomDialog === "approve") {
+                  await run("Visit approved", () => approve.mutateAsync({ id: visit.id, room }))
+                } else {
+                  await run(room ? "Room assigned" : "Room cleared", () => assignRoom.mutateAsync({ id: visit.id, room }))
+                }
+                setRoomDialog(null)
+              }}
+            />
             <ConfirmDialog
               open={confirm === "reject"}
               onOpenChange={(o) => !o && setConfirm(null)}

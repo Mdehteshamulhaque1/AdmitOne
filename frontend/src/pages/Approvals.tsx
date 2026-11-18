@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { toast } from "sonner"
-import { Ban, CheckCircle2, ClipboardCheck, Clock3, Mail, MessageSquareText, Phone, XCircle } from "lucide-react"
+import { Ban, CheckCircle2, ClipboardCheck, Clock3, DoorOpen, GraduationCap, Mail, MessageSquareText, Phone, XCircle } from "lucide-react"
 import { Avatar } from "@/components/ui/Avatar"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -10,7 +10,9 @@ import { ConfirmDialog } from "@/components/widgets/ConfirmDialog"
 import { PageHeader } from "@/components/widgets/PageHeader"
 import { QueryErrorState } from "@/components/widgets/QueryErrorState"
 import { StatusChip } from "@/components/widgets/StatusChip"
+import { AssignRoomDialog } from "@/components/visits/AssignRoomDialog"
 import { VisitDrawer } from "@/components/visits/VisitDrawer"
+import { categoryLabel } from "@/lib/student-options"
 import { useApproveVisit, useRejectVisit, useVisitList, useVisits } from "@/lib/queries"
 import { VISIT_SOURCE_LABELS, formatApiError, type Visit } from "@/lib/types"
 import { formatClock, formatDate, formatRelative } from "@/lib/utils"
@@ -22,16 +24,20 @@ export function ApprovalsPage() {
   const recent = recentQuery.data?.results ?? []
 
   const [rejecting, setRejecting] = useState<Visit | null>(null)
+  const [approving, setApproving] = useState<Visit | null>(null)
   const [selected, setSelected] = useState<Visit | null>(null)
   const [actingId, setActingId] = useState<number | null>(null)
   const approve = useApproveVisit()
   const reject = useRejectVisit()
 
-  const onApprove = async (v: Visit) => {
+  // Approval opens the room picker: staff decide which room the visitor is
+  // sent to (lab, interview cabin, placement hall...) in the same step.
+  const onApprove = async (v: Visit, room: number | null) => {
     setActingId(v.id)
     try {
-      const res = await approve.mutateAsync(v.id)
+      const res = await approve.mutateAsync({ id: v.id, room })
       toast.success("Visit approved", { description: res.detail })
+      setApproving(null)
     } catch (e) {
       toast.error("Approval failed", { description: formatApiError(e) })
     } finally {
@@ -83,7 +89,11 @@ export function ApprovalsPage() {
                     <button type="button" onClick={() => setSelected(v)} className="min-w-0 flex-1 text-left">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold hover:text-primary">{v.visitor.full_name}</span>
-                        <span className="text-xs text-muted-foreground">{v.visitor.company || "Independent"}</span>
+                        {v.visitor_category ? (
+                          <Badge tone="primary" size="sm"><GraduationCap className="size-3" /> {categoryLabel(v.visitor_category)}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{v.visitor.company || "Independent"}</span>
+                        )}
                         <Badge size="sm">{VISIT_SOURCE_LABELS[v.source] ?? v.source}</Badge>
                         {blocked && <Badge tone="danger" size="sm"><Ban className="size-3" /> Blacklisted</Badge>}
                         <span className="text-xs text-muted-foreground">· requested {formatRelative(v.registered_at)}</span>
@@ -92,8 +102,14 @@ export function ApprovalsPage() {
                         <span className="font-medium text-foreground">{v.purpose}</span>
                         <span>{formatDate(v.visit_date)} · {formatClock(v.expected_arrival)}–{formatClock(v.expected_exit)}</span>
                         {v.host_name && <span>Host {v.host_name}</span>}
-                        {v.building_name && <span>· {v.building_name}</span>}
+                        {v.building_name && <span>· {v.building_name}{v.floor_name ? `, ${v.floor_name}` : ""}</span>}
+                        {v.room_label && <span className="inline-flex items-center gap-1 text-primary"><DoorOpen className="size-3" /> {v.room_label}</span>}
                       </div>
+                      {(v.visitor.university || v.visitor.state || v.visitor.qualification) && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {[v.visitor.qualification, v.visitor.passing_year ? `batch ${v.visitor.passing_year}` : "", v.visitor.university, v.visitor.state].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1"><Phone className="size-3" /> {v.visitor.phone}</span>
                         {v.visitor.email && <span className="inline-flex items-center gap-1"><Mail className="size-3" /> {v.visitor.email}</span>}
@@ -111,10 +127,10 @@ export function ApprovalsPage() {
                       </Button>
                       <Button
                         className="min-w-28"
-                        onClick={() => onApprove(v)}
+                        onClick={() => setApproving(v)}
                         disabled={blocked || (approve.isPending && actingId !== v.id)}
                         loading={actingId === v.id}
-                        title={blocked ? "Blacklisted visitors cannot be approved" : undefined}
+                        title={blocked ? "Blacklisted visitors cannot be approved" : "Approve and choose the room"}
                       >
                         <CheckCircle2 className="size-4" /> Approve
                       </Button>
@@ -172,6 +188,14 @@ export function ApprovalsPage() {
         reasonPlaceholder="e.g. Host unavailable that day"
         loading={reject.isPending}
         onConfirm={onReject}
+      />
+      <AssignRoomDialog
+        visit={approving}
+        open={approving !== null}
+        onOpenChange={(o) => !o && setApproving(null)}
+        mode="approve"
+        loading={approve.isPending}
+        onConfirm={(room) => { if (approving) void onApprove(approving, room) }}
       />
       <VisitDrawer visitId={selected?.id ?? null} initial={selected} open={selected !== null} onOpenChange={(o) => !o && setSelected(null)} />
     </div>

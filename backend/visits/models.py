@@ -69,6 +69,50 @@ class BlacklistReason(models.TextChoices):
     PERMANENT_BAN = "PERMANENT_BAN", "Permanent Ban"
 
 
+class Room(models.Model):
+    """A bookable space inside a building: a lab, classroom, interview cabin,
+    placement hall. Staff assign a room to a visit on approval; trainers scan
+    passes at the room door for attendance.
+    """
+
+    class RoomType(models.TextChoices):
+        CLASSROOM = "CLASSROOM", "Classroom"
+        LAB = "LAB", "Lab"
+        INTERVIEW_CABIN = "INTERVIEW_CABIN", "Interview cabin"
+        PLACEMENT_HALL = "PLACEMENT_HALL", "Placement hall"
+        GROOMING_ROOM = "GROOMING_ROOM", "Grooming room"
+        SEMINAR_HALL = "SEMINAR_HALL", "Seminar hall"
+        MEETING_ROOM = "MEETING_ROOM", "Meeting room"
+        RECEPTION = "RECEPTION", "Reception / counselling"
+        OFFICE = "OFFICE", "Office"
+        OTHER = "OTHER", "Other"
+
+    building = models.ForeignKey("organizations.Building", on_delete=models.CASCADE, related_name="rooms")
+    floor = models.ForeignKey(
+        "organizations.Floor", on_delete=models.SET_NULL, null=True, blank=True, related_name="rooms"
+    )
+    number = models.CharField(max_length=30, help_text="Door number or code, e.g. 301 or L-2")
+    name = models.CharField(max_length=120, blank=True, help_text="Friendly name, e.g. Java Lab")
+    room_type = models.CharField(max_length=20, choices=RoomType.choices, default=RoomType.CLASSROOM)
+    capacity = models.PositiveIntegerField(default=0, help_text="0 = not tracked")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["building__name", "floor__level", "number"]
+        constraints = [
+            models.UniqueConstraint(fields=["building", "number"], name="uniq_room_number_per_building"),
+        ]
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def label(self):
+        base = f"{self.number} {self.name}".strip() if self.name else self.number
+        return f"{base} ({self.get_room_type_display()})"
+
+
 class Visitor(models.Model):
     """A person who visits one organization, owned by that tenant.
 
@@ -106,6 +150,16 @@ class Visitor(models.Model):
     company = models.CharField(max_length=150, blank=True)
     designation = models.CharField(max_length=150, blank=True)
     address = models.TextField(blank=True)
+
+    # Who the visitor is (training-centre profile). ``category`` is one of the
+    # workspace's configured visitor categories (``visits.purposes``); the rest
+    # are free text chosen from dropdowns in the booking flow.
+    category = models.CharField(max_length=40, blank=True, default="")
+    state = models.CharField(max_length=60, blank=True, default="")
+    university = models.CharField(max_length=150, blank=True, default="")
+    qualification = models.CharField(max_length=60, blank=True, default="")
+    passing_year = models.PositiveIntegerField(null=True, blank=True)
+
     photo = models.ImageField(
         upload_to="visitor_photos/",
         blank=True,
@@ -220,6 +274,17 @@ class Visit(models.Model):
         null=True,
         related_name="created_visits",
     )
+
+    # Assigned by staff on approval ("report to Lab 301, 3rd floor"). Trainers
+    # record attendance against this room by scanning the visitor's pass.
+    room = models.ForeignKey(
+        "visits.Room",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="visits",
+    )
+    visitor_category = models.CharField(max_length=40, blank=True, default="")
 
     visit_type = models.CharField(
         max_length=30, choices=VisitType.choices, blank=True, default=""
@@ -559,6 +624,13 @@ class VisitorAccount(models.Model):
     phone = models.CharField(max_length=20)
     company = models.CharField(max_length=150, blank=True)
     designation = models.CharField(max_length=150, blank=True)
+    # Training-centre profile, copied onto each per-organisation Visitor row
+    # when the account books so staff see it without reaching the account.
+    category = models.CharField(max_length=40, blank=True, default="")
+    state = models.CharField(max_length=60, blank=True, default="")
+    university = models.CharField(max_length=150, blank=True, default="")
+    qualification = models.CharField(max_length=60, blank=True, default="")
+    passing_year = models.PositiveIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     failed_login_attempts = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
@@ -613,3 +685,34 @@ class VisitorAccountSession(models.Model):
 
     def __str__(self):
         return f"VisitorAccountSession #{self.pk} ({self.account.email})"
+
+
+class RoomAttendance(models.Model):
+    """One scan of a visitor's pass at a room door (attendance / room entry).
+
+    Distinct from the gate check-in: the gate scan is single-use and admits
+    the visitor to the building; room scans may repeat (a student attends a
+    class, then an interview, then the placement hall). A room scan requires
+    the visit to be CHECKED_IN, so nobody can be "in a classroom" who never
+    passed the gate.
+    """
+
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="attendance")
+    room = models.ForeignKey(
+        "visits.Room", on_delete=models.CASCADE, related_name="attendance"
+    )
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    scanned_at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-scanned_at"]
+        indexes = [
+            models.Index(fields=["room", "-scanned_at"], name="attendance_room_time_idx"),
+            models.Index(fields=["visit", "-scanned_at"], name="attendance_visit_time_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.visit.visitor.full_name} @ {self.room.number} {self.scanned_at:%H:%M}"

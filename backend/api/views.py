@@ -35,9 +35,11 @@ from visits.availability import (
     organization_slot_duration,
     resolve_booking_host,
 )
-from visits.models import Blacklist, QRPass, Visit, VisitStatus, VisitType, Visitor
+from visits import signing
+from visits.models import Blacklist, QRPass, Room, RoomAttendance, Visit, VisitStatus, VisitType, Visitor
 from visits.services import (
     approve_visit,
+    assign_room,
     blacklist_visitor,
     cancel_visit_by_staff,
     check_in,
@@ -45,6 +47,7 @@ from visits.services import (
     create_pre_booking,
     register_visit,
     reject_visit,
+    record_room_attendance,
     reissue_qr_pass,
     remove_blacklist,
 )
@@ -52,6 +55,9 @@ from visits.services import (
 from .management_serializers import (
     BlacklistCreateSerializer,
     BlacklistEntrySerializer,
+    RoomAssignSerializer,
+    RoomAttendanceSerializer,
+    RoomScanSerializer,
     ScanSerializer,
     VisitCancelSerializer,
 )
@@ -323,9 +329,22 @@ class VisitViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.order_by(ordering, "-id")
         else:
             qs = qs.order_by("-registered_at")
-        return qs.select_related(
-            "visitor", "host", "building", "department", "created_by",
-            "checked_in_by", "checked_out_by", "qr_pass",
+        # ?room=<id> -- everyone assigned to one room (a class register)
+        room_id = (params.get("room") or "").strip()
+        if room_id.isdigit():
+            qs = qs.filter(room_id=int(room_id))
+        return qs.annotate(
+            attendance_total=Subquery(
+                RoomAttendance.objects.filter(visit=OuterRef("pk"))
+                .order_by()
+                .values("visit")
+                .annotate(c=Count("pk"))
+                .values("c")[:1]
+            )
+        ).select_related(
+            "visitor", "host", "building", "floor", "department", "created_by",
+            "checked_in_by", "checked_out_by", "qr_pass", "room", "room__building",
+            "room__floor",
         )
 
     @action(detail=False, methods=["post"], permission_classes=[CanScanQR])
@@ -417,9 +436,113 @@ class VisitViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[CanApproveVisit])
     def approve(self, request, pk=None):
+        """Approve a visit; ``room`` (optional) assigns the room in the same step.
+
+        The room is assigned *before* approval so a bad room id refuses the
+        request without approving anything, and so the approval e-mail /
+        pass already names the room.
+        """
         visit = self.get_object()
+        ser = RoomAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        if "room" in ser.validated_data:
+            ok, msg = assign_room(
+                visit, request.user, ser.validated_data["room"], audit_ip=client_ip(request)
+            )
+            if not ok:
+                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            visit = self.get_object()
         ok, msg = approve_visit(visit, request.user)
         return self._respond(ok, msg, visit)
+
+    @action(detail=True, methods=["post"], permission_classes=[CanApproveVisit], url_path="assign-room")
+    def assign_room(self, request, pk=None):
+        """Set or clear (``room: null``) the room for a pending/approved/checked-in visit."""
+        visit = self.get_object()
+        ser = RoomAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ok, msg = assign_room(
+            visit, request.user, ser.validated_data.get("room"), audit_ip=client_ip(request)
+        )
+        return self._respond(ok, msg, visit)
+
+    @action(detail=True, methods=["get"])
+    def attendance(self, request, pk=None):
+        """Room-scan history for one visit (newest first)."""
+        visit = self.get_object()
+        rows = (
+            RoomAttendance.objects.filter(visit=visit)
+            .select_related("room", "room__building", "scanned_by", "visit", "visit__visitor")
+            .order_by("-scanned_at")
+        )
+        return Response({"results": RoomAttendanceSerializer(rows, many=True).data})
+
+    @action(detail=False, methods=["post"], permission_classes=[CanScanQR], url_path="room-scan")
+    def room_scan(self, request):
+        """Scan a visitor's pass at a room door and record attendance.
+
+        Unlike the gate ``scan``, the pass is *not* redeemed: the gate scan
+        has already consumed it (``is_used``), so only the signature, the
+        tenant and the visit's CHECKED_IN state are checked here. Repeated
+        scans in different rooms are the point (class, lab, interview...).
+        A pass from another workspace is reported as unknown, never named.
+        """
+        ser = RoomScanSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        token = ser.validated_data["token"]
+        signature = ser.validated_data["signature"]
+        org_id = request.user.organization_id
+
+        room = (
+            Room.objects.select_related("building", "floor")
+            .filter(pk=ser.validated_data["room"], building__organization_id=org_id)
+            .first()
+        )
+        if room is None:
+            return Response({"ok": False, "detail": "Choose a room in your workspace."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        qr = (
+            QRPass.objects.select_related("visit", "visit__visitor")
+            .filter(token=token, visit__organization_id=org_id)
+            .first()
+            if _looks_like_uuid(token)
+            else None
+        )
+        if qr is None or signing.verify(qr.visit.visit_id, org_id, qr.token, signature) is None:
+            AuditLog.log(
+                request.user, "Room scan rejected", "QRPass", token[:64],
+                f"room {room.label} | unknown or tampered pass", ip_address=client_ip(request),
+            )
+            return Response(
+                {"ok": False, "detail": "Unknown pass - not registered in system", "visit": None},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if ser.validated_data.get("dry_run"):
+            return Response({
+                "ok": True, "dry_run": True, "detail": "Pass recognised.",
+                "visit": self.get_serializer(self.get_queryset().get(pk=qr.visit_id)).data,
+            })
+
+        entry, ok, msg = record_room_attendance(
+            qr.visit, room, request.user,
+            note=ser.validated_data.get("note", ""), audit_ip=client_ip(request),
+        )
+        fresh = self.get_queryset().filter(pk=qr.visit_id).first() or qr.visit
+        payload = {
+            "ok": ok,
+            "detail": msg,
+            "visit": self.get_serializer(fresh).data,
+            "attendance": RoomAttendanceSerializer(entry).data if entry is not None else None,
+        }
+        if not ok:
+            AuditLog.log(
+                request.user, "Room scan rejected", "Visit", qr.visit.visit_id,
+                f"room {room.label} | {msg}", ip_address=client_ip(request),
+            )
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+        return Response(payload)
 
     @action(detail=True, methods=["post"], permission_classes=[CanApproveVisit])
     def reject(self, request, pk=None):
@@ -739,7 +862,10 @@ class OrganizationCreateView(APIView):
         user.save(update_fields=["organization", "role"])
 
         building_name = (request.data.get("building_name") or "").strip() or "Head Office"
-        Building.objects.create(organization=org, name=building_name)
+        building = Building.objects.create(organization=org, name=building_name)
+        from .management_views import sync_floors
+
+        sync_floors(building)
 
         Employee.objects.get_or_create(
             user=user,
@@ -797,7 +923,7 @@ class HostListView(APIView):
 def build_public_booking_context(org):
     """Read-only option sets for a booking form (shared by the anonymous
     booking endpoint and the signed-in visitor flow)."""
-    from visits.purposes import VISIT_TYPE_LABELS, purposes_for
+    from visits.purposes import VISIT_TYPE_LABELS, catalogue_for, purposes_for
 
     departments = Department.objects.filter(organization=org)
     buildings = Building.objects.filter(organization=org).prefetch_related("floor_set")
@@ -826,6 +952,8 @@ def build_public_booking_context(org):
             if code in VisitType.values
         ],
         "purposes": {code: purposes_for(code) for code in VisitType.values},
+        # Who is visiting -> what for. Drives the dropdowns in the booking flow.
+        "visitor_categories": catalogue_for(org)["categories"],
     }
 
 
@@ -861,7 +989,8 @@ class PublicBookingView(APIView):
         visit, ok, msg = create_pre_booking(
             org,
             visitor_data=data["visitor"],
-            visit_type=data["visit_type"],
+            visit_type=data.get("visit_type", ""),
+            category=data.get("category", ""),
             department_id=data.get("department"),
             building_id=data.get("building"),
             floor_id=data.get("floor"),

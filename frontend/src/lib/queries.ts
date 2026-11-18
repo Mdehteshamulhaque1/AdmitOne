@@ -21,6 +21,10 @@ import type {
   Paged,
   RegisterVisitPayload,
   RegisterVisitResponse,
+  Room,
+  RoomAttendance,
+  RoomPayload,
+  RoomScanResult,
   ScanResult,
   TeamMember,
   TeamMemberCreatePayload,
@@ -42,6 +46,9 @@ export const queryKeys = {
   hosts: ["hosts"] as const,
   buildings: ["buildings"] as const,
   departments: ["departments"] as const,
+  rooms: ["rooms"] as const,
+  attendance: (params: { date?: string; room?: number } = {}) => ["attendance", params] as const,
+  visitAttendance: (id: number) => ["visit-attendance", id] as const,
   team: (q = "") => ["team", q] as const,
   org: ["org"] as const,
   audit: (params: AuditLogParams = {}) => ["audit", params] as const,
@@ -98,6 +105,8 @@ export function useVisit(id: number | null) {
 
 function invalidateVisitData(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ["visits"] })
+  void queryClient.invalidateQueries({ queryKey: ["visit-attendance"] })
+  void queryClient.invalidateQueries({ queryKey: ["attendance"] })
   void queryClient.invalidateQueries({ queryKey: ["visit"] })
   void queryClient.invalidateQueries({ queryKey: ["visitor-visits"] })
   void queryClient.invalidateQueries({ queryKey: ["visitors"] })
@@ -116,8 +125,64 @@ function useVisitAction(endpoint: "approve" | "checkin" | "checkout" | "reissue"
   })
 }
 
+/** Approve; `room` (optional) assigns the room in the same step. */
 export function useApproveVisit() {
-  return useVisitAction("approve")
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: number | { id: number; room?: number | null }) => {
+      const { id, room } = typeof input === "number" ? { id: input, room: undefined } : input
+      return api<{ detail: string; visit: Visit }>(`/api/visits/${id}/approve/`, {
+        method: "POST",
+        body: JSON.stringify(room === undefined ? {} : { room }),
+      })
+    },
+    onSuccess: () => invalidateVisitData(queryClient),
+  })
+}
+
+export function useAssignRoom() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, room }: { id: number; room: number | null }) =>
+      api<{ detail: string; visit: Visit }>(`/api/visits/${id}/assign-room/`, {
+        method: "POST",
+        body: JSON.stringify({ room }),
+      }),
+    onSuccess: () => invalidateVisitData(queryClient),
+  })
+}
+
+export function useVisitAttendance(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.visitAttendance(id ?? 0),
+    queryFn: () => api<{ results: RoomAttendance[] }>(`/api/visits/${id}/attendance/`),
+    enabled: id !== null,
+    select: (data) => data.results,
+  })
+}
+
+/** Scan a pass at a room door: records attendance, does not redeem the pass. */
+export function useRoomScan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ payload, room, dryRun = false, note }: { payload: string; room: number; dryRun?: boolean; note?: string }) =>
+      api<RoomScanResult>("/api/visits/room-scan/", {
+        method: "POST",
+        body: JSON.stringify({ payload, room, dry_run: dryRun, note: note ?? "" }),
+      }),
+    onSuccess: (_data, vars) => {
+      if (!vars.dryRun) invalidateVisitData(queryClient)
+    },
+  })
+}
+
+export function useAttendance(params: { date?: string; room?: number } = {}, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.attendance(params),
+    queryFn: () => api<Paged<RoomAttendance>>(`/api/attendance/${qs({ page_size: 100, ...params })}`),
+    placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
+  })
 }
 export function useCheckIn() {
   return useVisitAction("checkin")
@@ -300,6 +365,15 @@ export function useDepartments() {
   })
 }
 
+export function useRooms(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.rooms,
+    queryFn: () => api<Room[]>("/api/rooms/"),
+    staleTime: 60_000,
+    enabled: options.enabled ?? true,
+  })
+}
+
 export function useOrganization(enabled = true) {
   return useQuery({
     queryKey: queryKeys.org,
@@ -351,6 +425,10 @@ export function useBuildingMutations() {
 
 export function useDepartmentMutations() {
   return useCrud<Department, { name: string; code?: string }>("/api/departments", queryKeys.departments)
+}
+
+export function useRoomMutations() {
+  return useCrud<Room, RoomPayload>("/api/rooms", queryKeys.rooms)
 }
 
 /* ---------------- Team ---------------- */

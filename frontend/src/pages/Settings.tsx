@@ -7,7 +7,9 @@ import { toast } from "sonner"
 import {
   Building2,
   Clock,
+  DoorOpen,
   ExternalLink,
+  ListChecks,
   KeyRound,
   Layers,
   Link2,
@@ -43,13 +45,17 @@ import {
   useUpdateProfile,
 } from "@/lib/queries"
 import { ROLE_LABELS, formatApiError, type Building, type Department, type WeeklyWorkingHours } from "@/lib/types"
+import { CatalogueEditor } from "@/components/settings/CatalogueEditor"
+import { RoomsTab } from "@/components/settings/RoomsTab"
 import { WeeklyHoursEditor } from "@/components/settings/WeeklyHoursEditor"
 
-type Tab = "workspace" | "buildings" | "departments" | "account"
+type Tab = "workspace" | "buildings" | "rooms" | "departments" | "visitors" | "account"
 const TABS: { value: Tab; label: string; icon: typeof Building2; adminOnly?: boolean }[] = [
   { value: "workspace", label: "Workspace", icon: Building2 },
   { value: "buildings", label: "Buildings", icon: Layers },
+  { value: "rooms", label: "Rooms", icon: DoorOpen },
   { value: "departments", label: "Departments", icon: Layers },
+  { value: "visitors", label: "Visitor options", icon: ListChecks },
   { value: "account", label: "My account", icon: UserRound },
 ]
 
@@ -519,7 +525,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Settings" description="Workspace identity, locations, departments and your own account." />
+      <PageHeader title="Settings" description="Workspace identity, buildings and rooms, departments, visitor options and your own account." />
       <Tabs value={active} onValueChange={(v) => navigate(`/dashboard/settings/${v}`, { replace: true })}>
         <TabsList className="h-auto flex-wrap justify-start">
           {TABS.map((t) => (
@@ -532,7 +538,9 @@ export function SettingsPage() {
       <div className="pt-1">
         {active === "workspace" && <WorkspaceTab />}
         {active === "buildings" && <BuildingsTab />}
+        {active === "rooms" && <RoomsTab />}
         {active === "departments" && <DepartmentsTab />}
+        {active === "visitors" && <CatalogueEditor />}
         {active === "account" && <AccountTab />}
       </div>
     </div>

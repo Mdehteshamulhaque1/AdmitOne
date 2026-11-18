@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
+  DoorOpen,
   LogOut,
   MapPin,
   Navigation,
@@ -39,6 +40,7 @@ import { ConfirmDialog } from "@/components/widgets/ConfirmDialog"
 import { Field } from "@/components/widgets/Field"
 import { StatusChip } from "@/components/widgets/StatusChip"
 import { api } from "@/lib/api"
+import { categoryLabel } from "@/lib/student-options"
 import { useTheme } from "@/lib/theme"
 import { formatApiError, type AvailabilitySlot, type BookingHost, type HostAvailabilityResponse } from "@/lib/types"
 import { cn, formatDate, formatDateTime, todayIso } from "@/lib/utils"
@@ -70,7 +72,8 @@ const STEPS: { key: Step; label: string }[] = [
 ]
 
 interface Draft {
-  visit_type: string
+  /** Catalogue category key (who is visiting); drives the purpose list. */
+  category: string
   purpose: string
   purpose_other: string
   department: string
@@ -82,7 +85,7 @@ interface Draft {
   notes: string
 }
 const EMPTY_DRAFT: Draft = {
-  visit_type: "",
+  category: "",
   purpose: "",
   purpose_other: "",
   department: "",
@@ -265,11 +268,24 @@ function OrganisationStep({ preset, onPick }: { preset: string; onPick: (org: Or
 
 function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; draft: Draft; setDraft: (d: Draft) => void; onBack: () => void; onNext: () => void }) {
   const ctx = useOrganizationContext(slug)
+  const account = useVisitorAccount()
   const hosts = usePublicHosts(slug, draft.department)
   const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch })
-  const purposes = ctx.data?.purposes[draft.visit_type] ?? []
+  const categories = ctx.data?.visitor_categories ?? []
+  const category = categories.find((c) => c.key === draft.category)
+  const purposes = category?.purposes ?? []
   const building = ctx.data?.buildings.find((b) => String(b.id) === draft.building)
-  const valid = draft.visit_type && draft.purpose && (draft.purpose !== "Other" || draft.purpose_other.trim()) && draft.host
+  const valid = draft.category && draft.purpose && (draft.purpose !== "Other" || draft.purpose_other.trim()) && draft.host
+
+  // Pre-select the category the visitor chose at sign-up (e.g. Student) so
+  // the usual case is "pick a purpose, pick a host".
+  const accountCategory = account.data?.category ?? ""
+  useEffect(() => {
+    if (draft.category || categories.length === 0) return
+    const preset = categories.some((c) => c.key === accountCategory) ? accountCategory : categories[0].key
+    setDraft({ ...draft, category: preset })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.length, accountCategory])
 
   if (ctx.isLoading) return <Skeleton className="h-96 w-full" />
   if (ctx.isError || !ctx.data) return <Alert variant="danger">Couldn't load the booking form. <Button variant="ghost" size="sm" onClick={onBack}>Choose another organisation</Button></Alert>
@@ -279,33 +295,33 @@ function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; 
       <CardContent className="space-y-6 p-5 sm:p-7">
         <div>
           <h2 className="text-xl font-bold tracking-tight">What brings you to {ctx.data.organization.name}?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Pick the type of visit and the person you are meeting.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Choose who you are and what you're coming for; the team assigns your room when they approve.</p>
         </div>
 
         <div>
-          <div className="mb-2 text-sm font-medium">Type of visit</div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {ctx.data.visit_types.map((t) => (
+          <div className="mb-2 text-sm font-medium">I am a</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {categories.map((c) => (
               <button
-                key={t.value}
+                key={c.key}
                 type="button"
-                onClick={() => set({ visit_type: t.value, purpose: "", purpose_other: "" })}
+                onClick={() => set({ category: c.key, purpose: "", purpose_other: "" })}
                 className={cn(
                   "rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition",
-                  draft.visit_type === t.value ? "border-primary bg-primary-soft text-primary" : "border-border bg-card hover:border-border-strong",
+                  draft.category === c.key ? "border-primary bg-primary-soft text-primary" : "border-border bg-card hover:border-border-strong",
                 )}
               >
-                {t.label}
+                {c.label}
               </button>
             ))}
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="d-purpose" label="Purpose" required>
-            <Select value={draft.purpose} onValueChange={(v) => set({ purpose: v })} disabled={!draft.visit_type}>
-              <SelectTrigger id="d-purpose"><SelectValue placeholder={draft.visit_type ? "Choose a purpose" : "Pick a visit type first"} /></SelectTrigger>
-              <SelectContent>{purposes.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+          <Field id="d-purpose" label="Purpose of visit" required hint={purposes.find((p) => p.label === draft.purpose)?.room_type ? "You'll be sent to the right room for this." : undefined}>
+            <Select value={draft.purpose} onValueChange={(v) => set({ purpose: v })} disabled={!draft.category}>
+              <SelectTrigger id="d-purpose"><SelectValue placeholder={draft.category ? "Choose a purpose" : "Pick who you are first"} /></SelectTrigger>
+              <SelectContent>{purposes.map((p) => <SelectItem key={p.label} value={p.label}>{p.label}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           {draft.purpose === "Other" && (
@@ -331,7 +347,7 @@ function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; 
             </Select>
           </Field>
           {ctx.data.buildings.length > 1 && (
-            <Field id="d-bld" label="Building">
+            <Field id="d-bld" label="Building" hint="Optional. Staff confirm the exact room on approval.">
               <Select value={draft.building || "any"} onValueChange={(v) => set({ building: v === "any" ? "" : v, floor: "" })}>
                 <SelectTrigger id="d-bld"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -435,7 +451,7 @@ function ReviewStep({ org, slug, draft, setDraft, onBack, onDone }: { org: Organ
     try {
       const res = await create.mutateAsync({
         organization: slug,
-        visit_type: draft.visit_type,
+        category: draft.category,
         purpose: draft.purpose,
         purpose_other: draft.purpose_other,
         department: draft.department ? Number(draft.department) : null,
@@ -456,11 +472,14 @@ function ReviewStep({ org, slug, draft, setDraft, onBack, onDone }: { org: Organ
 
   const rows: [string, string][] = [
     ["Organisation", [org.name, org.city].filter(Boolean).join(" · ")],
-    ["Visit", `${ctx.data?.visit_types.find((t) => t.value === draft.visit_type)?.label ?? draft.visit_type} · ${draft.purpose === "Other" ? draft.purpose_other : draft.purpose}`],
+    ["Visit", `${categoryLabel(draft.category, ctx.data?.visitor_categories)} · ${draft.purpose === "Other" ? draft.purpose_other : draft.purpose}`],
     ["Meeting", host ? `${host.name}${host.designation ? `, ${host.designation}` : ""}${dept ? ` (${dept.name})` : ""}` : "—"],
     ["Location", [bld?.name, bld?.floors.find((f) => String(f.id) === draft.floor)?.name].filter(Boolean).join(", ") || "To be confirmed"],
     ["When", draft.slot ? `${formatDate(draft.visit_date)} · ${draft.slot.start}–${draft.slot.end}` : "—"],
     ["You", account.data ? `${account.data.full_name} · ${account.data.phone} · ${account.data.email}` : "—"],
+    ...(account.data && (account.data.university || account.data.qualification || account.data.state)
+      ? [["Profile", [account.data.qualification, account.data.passing_year ? `batch ${account.data.passing_year}` : "", account.data.university, account.data.state].filter(Boolean).join(" · ")] as [string, string]]
+      : []),
   ]
 
   return (
@@ -504,8 +523,9 @@ function DoneStep({ visit, onAnother, onManage }: { visit: VisitorVisit; onAnoth
         </p>
         <div className="mx-auto mt-5 grid max-w-md gap-2 rounded-xl border border-border p-4 text-left text-sm">
           <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary" /> {formatDate(visit.visit_date)} · {visit.expected_arrival}–{visit.expected_exit}</div>
-          <div className="flex items-center gap-2"><ClipboardList className="size-4 text-primary" /> {visit.visit_type_label} · {visit.purpose}</div>
+          <div className="flex items-center gap-2"><ClipboardList className="size-4 text-primary" /> {visit.visitor_category ? categoryLabel(visit.visitor_category) : visit.visit_type_label} · {visit.purpose}</div>
           {visit.building_name && <div className="flex items-center gap-2"><MapPin className="size-4 text-primary" /> {[visit.building_name, visit.floor_name].filter(Boolean).join(", ")}</div>}
+          <div className="flex items-center gap-2"><DoorOpen className="size-4 text-primary" /> <span className="text-muted-foreground">Your room is shown here and on your pass once the team assigns it.</span></div>
           <div className="flex items-center gap-2"><StatusChip status={visit.status} size="sm" /> <span className="text-muted-foreground">Awaiting host approval</span></div>
         </div>
         <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
@@ -536,6 +556,7 @@ function PassDialog({ visit, onClose }: { visit: VisitorVisit | null; onClose: (
             <div className="text-center text-sm">
               <div className="font-semibold">{visit.organization_name}</div>
               <div className="text-muted-foreground">{formatDate(visit.visit_date)} · {visit.expected_arrival}–{visit.expected_exit}</div>
+              {visit.room_label && <div className="mt-1 inline-flex items-center gap-1 font-medium text-primary"><DoorOpen className="size-3.5" /> Room {visit.room_label}{visit.floor_name ? ` · ${visit.floor_name}` : ""}</div>}
               <div className="mt-1 font-mono text-xs text-muted-foreground">Ref {visit.reference.slice(0, 8)}</div>
               {!visit.qr?.is_valid && <Badge tone="neutral" className="mt-2">This pass has already been used or has expired</Badge>}
             </div>
@@ -624,11 +645,12 @@ function MyVisits({ onBookAnother }: { onBookAnother: () => void }) {
             <StatusChip status={v.status} size="sm" />
             {v.arriving_at && <Badge tone="cyan" size="sm">Arrival announced</Badge>}
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">{v.visit_type_label} · {v.purpose}{v.host_name ? ` · with ${v.host_name}` : ""}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{v.visitor_category ? categoryLabel(v.visitor_category) : v.visit_type_label} · {v.purpose}{v.host_name ? ` · with ${v.host_name}` : ""}</div>
           <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1"><CalendarDays className="size-3" /> {formatDate(v.visit_date)}</span>
             <span className="inline-flex items-center gap-1"><Clock className="size-3" /> {v.expected_arrival}–{v.expected_exit}</span>
-            {v.building_name && <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {v.building_name}</span>}
+            {v.building_name && <span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {[v.building_name, v.floor_name].filter(Boolean).join(", ")}</span>}
+            {v.room_label && <span className="inline-flex items-center gap-1 font-medium text-primary"><DoorOpen className="size-3" /> Room {v.room_label}</span>}
             <span className="font-mono">Ref {v.reference.slice(0, 8)}</span>
           </div>
           {v.status === "REJECTED" && v.rejection_reason && <p className="mt-1 text-xs italic text-danger">Declined: {v.rejection_reason}</p>}

@@ -103,8 +103,91 @@ export interface OrganizationDetail extends Organization {
   visitor_policies: Record<string, unknown>
   security_policies: Record<string, unknown>
   weekly_working_hours: WeeklyWorkingHours
+  /** Effective catalogue (saved one, or the training-centre defaults). */
+  visitor_catalogue: VisitorCatalogue
   booking_path: string
   created_at: string
+}
+
+/* ---------------- Visitor catalogue (who visits -> what for) ---------------- */
+
+export interface CataloguePurpose {
+  label: string
+  visit_type: string
+  room_type: RoomType | ""
+}
+
+export interface CatalogueCategory {
+  key: string
+  label: string
+  purposes: CataloguePurpose[]
+}
+
+export interface VisitorCatalogue {
+  categories: CatalogueCategory[]
+}
+
+/* ---------------- Rooms ---------------- */
+
+export const ROOM_TYPES = [
+  { value: "CLASSROOM", label: "Classroom" },
+  { value: "LAB", label: "Lab" },
+  { value: "INTERVIEW_CABIN", label: "Interview cabin" },
+  { value: "PLACEMENT_HALL", label: "Placement hall" },
+  { value: "GROOMING_ROOM", label: "Grooming room" },
+  { value: "SEMINAR_HALL", label: "Seminar hall" },
+  { value: "MEETING_ROOM", label: "Meeting room" },
+  { value: "RECEPTION", label: "Reception / counselling" },
+  { value: "OFFICE", label: "Office" },
+  { value: "OTHER", label: "Other" },
+] as const
+
+export type RoomType = (typeof ROOM_TYPES)[number]["value"]
+
+export interface Room {
+  id: number
+  building: number
+  building_name: string
+  floor: number | null
+  floor_name: string
+  number: string
+  name: string
+  room_type: RoomType
+  room_type_label: string
+  capacity: number
+  is_active: boolean
+  label: string
+  created_at: string
+}
+
+export interface RoomPayload {
+  building: number
+  floor?: number | null
+  number: string
+  name?: string
+  room_type?: RoomType
+  capacity?: number
+  is_active?: boolean
+}
+
+export interface RoomAttendance {
+  id: number
+  visit_id: number
+  visit_reference: string
+  visitor_name: string
+  visitor_category: string
+  purpose: string
+  room: number
+  room_label: string
+  room_number: string
+  building_name: string
+  scanned_by_name: string
+  scanned_at: string
+  note: string
+}
+
+export interface RoomScanResult extends ScanResult {
+  attendance: RoomAttendance | null
 }
 
 export interface OrganizationUpdatePayload {
@@ -129,6 +212,9 @@ export interface Building {
   entry_gates: number
   exit_gates: number
   has_reception_desk?: boolean
+  /** Floor rows (kept in sync with `floors` by the API) for placing rooms. */
+  floor_list?: BookingFloor[]
+  room_count?: number
   created_at?: string
 }
 
@@ -234,6 +320,12 @@ export interface Visitor {
   email: string
   company: string
   designation: string
+  /** Training-centre profile (free text on the wire; dropdowns in the UI). */
+  category: string
+  state: string
+  university: string
+  qualification: string
+  passing_year: number | null
   /** Only present for roles holding `view_visitor_pii` (admin, reception). */
   address?: string
   photo: string | null
@@ -289,8 +381,15 @@ export interface Visit {
   host_name: string
   building: number | null
   building_name: string
+  floor: number | null
+  floor_name: string
+  room: number | null
+  room_label: string
+  room_number: string
+  attendance_count: number
   department_name: string
   purpose: string
+  visitor_category: string
   visit_type: string
   visit_type_label: string
   source: VisitSource
@@ -324,6 +423,7 @@ export interface VisitListParams {
   visitor?: number
   host?: number
   building?: number
+  room?: number
   inside?: boolean
   upcoming?: boolean
   ordering?: string
@@ -524,6 +624,8 @@ export interface BookingContext {
   buildings: BookingBuilding[]
   visit_types: VisitTypeOption[]
   purposes: Record<string, string[]>
+  /** Catalogue categories the visitor chooses from (drives the purpose list). */
+  visitor_categories: CatalogueCategory[]
 }
 
 export interface AvailabilitySlot {

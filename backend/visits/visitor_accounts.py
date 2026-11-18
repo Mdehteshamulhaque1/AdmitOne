@@ -43,8 +43,17 @@ def normalize_email(email):
 # ------------------------------------------------------------------ accounts
 
 
-def register_account(*, email, password, full_name, phone, company="", designation="", audit_ip=None):
-    """Create a visitor account. Returns ``(account, ok, msg)``."""
+PROFILE_FIELDS = ("category", "state", "university", "qualification", "passing_year")
+
+
+def register_account(
+    *, email, password, full_name, phone, company="", designation="", audit_ip=None, **profile
+):
+    """Create a visitor account. Returns ``(account, ok, msg)``.
+
+    ``profile`` carries the optional training-centre fields
+    (:data:`PROFILE_FIELDS`); anything else is ignored.
+    """
     email = normalize_email(email)
     if VisitorAccount.objects.filter(email__iexact=email).exists():
         return None, False, {"email": ["An account with this e-mail already exists."]}
@@ -55,6 +64,12 @@ def register_account(*, email, password, full_name, phone, company="", designati
         company=(company or "").strip(),
         designation=(designation or "").strip(),
     )
+    for field in PROFILE_FIELDS:
+        value = profile.get(field)
+        if field == "passing_year":
+            account.passing_year = value or None
+        elif value is not None:
+            setattr(account, field, str(value).strip())
     account.set_password(password)
     try:
         with transaction.atomic():
@@ -205,7 +220,15 @@ def book_visit_for_account(account, org, *, audit_ip=None, **booking):
         "email": account.email,
         "company": account.company,
         "designation": account.designation,
+        # training-centre profile travels with every booking so staff see it
+        # on the visitor record without reaching into the account
+        "category": account.category,
+        "state": account.state,
+        "university": account.university,
+        "qualification": account.qualification,
+        "passing_year": account.passing_year,
     }
+    booking.setdefault("category", account.category)
     with transaction.atomic():
         visit, ok, msg = create_pre_booking(org, visitor_data=visitor_data, audit_ip=audit_ip, **booking)
         if not ok:
@@ -225,6 +248,11 @@ def account_payload(account):
         "phone": account.phone,
         "company": account.company,
         "designation": account.designation,
+        "category": account.category,
+        "state": account.state,
+        "university": account.university,
+        "qualification": account.qualification,
+        "passing_year": account.passing_year,
         "created_at": account.created_at,
         "last_login": account.last_login,
         "session_days": SESSION_TTL_DAYS,

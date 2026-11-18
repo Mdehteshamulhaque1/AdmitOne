@@ -27,6 +27,7 @@ router.register("visitors", views.VisitorViewSet, basename="api-visitors")
 router.register("visits", views.VisitViewSet, basename="api-visits")
 router.register("buildings", mgmt.BuildingViewSet, basename="api-buildings")
 router.register("departments", mgmt.DepartmentViewSet, basename="api-departments")
+router.register("rooms", mgmt.RoomViewSet, basename="api-rooms")
 router.register("team", mgmt.TeamViewSet, basename="api-team")
 
 urlpatterns = [
@@ -47,6 +48,7 @@ urlpatterns = [
     path("audit-logs/", mgmt.AuditLogListView.as_view(), name="api-audit-logs"),
     path("audit-logs/actions/", mgmt.AuditActionsView.as_view(), name="api-audit-actions"),
     path("blacklist/", mgmt.BlacklistListView.as_view(), name="api-blacklist"),
+    path("attendance/", mgmt.AttendanceListView.as_view(), name="api-attendance"),
     path("time/", mgmt.ServerTimeView.as_view(), name="api-time"),
     path("public/booking/<slug:slug>/hosts/", views.PublicBookingHostsView.as_view(), name="api-public-booking-hosts"),
     path("public/booking/<slug:slug>/availability/", views.PublicBookingAvailabilityView.as_view(), name="api-public-booking-availability"),

@@ -20,9 +20,9 @@ from rest_framework.views import APIView
 from accounts.models import Role
 from accounts.permissions import IsTenantMember, require_permission
 from accounts.utils import client_ip
-from organizations.models import AuditLog, Building, Department, Employee
+from organizations.models import AuditLog, Building, Department, Employee, Floor
 from reports.services import audit_csv_export
-from visits.models import Blacklist
+from visits.models import Blacklist, Room, RoomAttendance
 
 from .management_serializers import (
     AuditLogSerializer,
@@ -32,6 +32,8 @@ from .management_serializers import (
     DepartmentWriteSerializer,
     OrganizationDetailSerializer,
     ProfileUpdateSerializer,
+    RoomAttendanceSerializer,
+    RoomSerializer,
     TeamMemberCreateSerializer,
     TeamMemberSerializer,
     TeamMemberUpdateSerializer,
@@ -133,6 +135,31 @@ class _TenantModelViewSet(viewsets.ModelViewSet):
             instance.delete()
 
 
+def _floor_name(level):
+    if level == 1:
+        return "Ground floor"
+    n = level - 1
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix} floor"
+
+
+def sync_floors(building):
+    """Keep ``Floor`` rows in step with ``building.floors`` (the count).
+
+    Levels 1..N exist after this call (named Ground, 1st, 2nd... on first
+    creation; renamed floors are left alone). Levels above N are removed only
+    when no room sits on them, so shrinking a building never orphans a room.
+    """
+    wanted = max(int(building.floors or 1), 1)
+    existing = {f.level: f for f in building.floor_set.all()}
+    for level in range(1, wanted + 1):
+        if level not in existing:
+            Floor.objects.create(building=building, level=level, name=_floor_name(level))
+    for level, floor in existing.items():
+        if level > wanted and not floor.rooms.exists():
+            floor.delete()
+
+
 class BuildingViewSet(_TenantModelViewSet):
     serializer_class = BuildingWriteSerializer
     write_permission = "manage_buildings"
@@ -140,13 +167,116 @@ class BuildingViewSet(_TenantModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        return Building.objects.filter(organization=self.request.user.organization).order_by("name")
+        return (
+            Building.objects.filter(organization=self.request.user.organization)
+            .prefetch_related("floor_set")
+            .annotate(room_count=Count("rooms", distinct=True))
+            .order_by("name")
+        )
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        sync_floors(serializer.instance)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        sync_floors(serializer.instance)
 
     def perform_destroy(self, instance):
         org = self.request.user.organization
         if Building.objects.filter(organization=org).count() <= 1:
             raise PermissionDenied("A workspace needs at least one building.")
         super().perform_destroy(instance)
+
+
+class RoomViewSet(_TenantModelViewSet):
+    """Rooms of the workspace's buildings (``/api/rooms/?building=<id>``).
+
+    Read by anyone in the workspace (the approval dialog and the room
+    scanner need the list); written with ``manage_buildings``.
+    """
+
+    serializer_class = RoomSerializer
+    write_permission = "manage_buildings"
+    entity_label = "Room"
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = (
+            Room.objects.filter(building__organization=self.request.user.organization)
+            .select_related("building", "floor")
+            .order_by("building__name", "floor__level", "number")
+        )
+        building = (self.request.query_params.get("building") or "").strip()
+        if building.isdigit():
+            qs = qs.filter(building_id=int(building))
+        if (self.request.query_params.get("active") or "").lower() in ("1", "true"):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        # Rooms hang off a building, not the organisation directly.
+        with transaction.atomic():
+            obj = serializer.save()
+            AuditLog.log(
+                self.request.user, "Room created", "Room", obj.pk, obj.label,
+                ip_address=client_ip(self.request),
+                organization_id=self.request.user.organization_id,
+            )
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            obj = serializer.save()
+            AuditLog.log(
+                self.request.user, "Room updated", "Room", obj.pk, obj.label,
+                ip_address=client_ip(self.request),
+                organization_id=self.request.user.organization_id,
+            )
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            AuditLog.log(
+                self.request.user, "Room deleted", "Room", instance.pk, instance.label,
+                ip_address=client_ip(self.request),
+                organization_id=self.request.user.organization_id,
+            )
+            instance.delete()
+
+
+class AttendanceListView(ListAPIView):
+    """Room attendance register: ``/api/attendance/?date=YYYY-MM-DD&room=<id>``.
+
+    Defaults to today in the workspace's timezone. ``view_reports`` because
+    it is a report across visitors, not a single visit's history.
+    """
+
+    serializer_class = RoomAttendanceSerializer
+    permission_classes = [IsAuthenticated, IsTenantMember, require_permission("view_reports")]
+
+    def get_queryset(self):
+        from datetime import date as date_cls
+
+        from accounts.utils import org_localdate
+
+        org = self.request.user.organization
+        qs = RoomAttendance.objects.filter(visit__organization=org).select_related(
+            "room", "room__building", "scanned_by", "visit", "visit__visitor"
+        )
+        params = self.request.query_params
+        raw = (params.get("date") or "").strip()
+        day = None
+        if raw:
+            try:
+                day = date_cls.fromisoformat(raw)
+            except ValueError:
+                day = None
+        if day is None:
+            day = org_localdate(org)
+        qs = qs.filter(visit__visit_date=day)
+        room = (params.get("room") or "").strip()
+        if room.isdigit():
+            qs = qs.filter(room_id=int(room))
+        return qs.order_by("-scanned_at")
 
 
 class DepartmentViewSet(_TenantModelViewSet):

@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import {
   Ban,
   CheckCircle2,
+  DoorOpen,
   Keyboard,
   LogIn,
   LogOut,
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Input } from "@/components/ui/Input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Skeleton } from "@/components/ui/Skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { ConfirmDialog } from "@/components/widgets/ConfirmDialog"
@@ -28,12 +30,15 @@ import { StatusChip } from "@/components/widgets/StatusChip"
 import { QrScanner } from "@/components/security/QrScanner"
 import { VisitDrawer } from "@/components/visits/VisitDrawer"
 import { useAuth } from "@/lib/auth"
-import { useCheckIn, useCheckOut, useScanPass, useVisitList } from "@/lib/queries"
+import { useCheckIn, useCheckOut, useRoomScan, useRooms, useScanPass, useVisitList } from "@/lib/queries"
 import { formatApiError, type ScanResult, type Visit } from "@/lib/types"
 import { cn, formatClock, formatRelative } from "@/lib/utils"
 
+type ScanMode = "gate" | "room"
+
 interface ScanOutcome {
   ok: boolean
+  title: string
   detail: string
   visit: Visit | null
   at: Date
@@ -56,7 +61,7 @@ function ScanResultCard({ outcome, onDismiss, onOpen }: { outcome: ScanOutcome; 
         </span>
         <div className="min-w-0 flex-1">
           <div className={cn("text-base font-bold", outcome.ok ? "text-success" : "text-danger")}>
-            {outcome.ok ? "Entry granted" : "Entry denied"}
+            {outcome.title}
           </div>
           <div className="text-sm text-foreground">{outcome.detail}</div>
           {v && (
@@ -88,6 +93,10 @@ function ScanResultCard({ outcome, onDismiss, onOpen }: { outcome: ScanOutcome; 
 export function SecurityPage() {
   const { can } = useAuth()
   const scan = useScanPass()
+  const roomScan = useRoomScan()
+  const rooms = useRooms()
+  const [mode, setMode] = useState<ScanMode>("gate")
+  const [roomId, setRoomId] = useState("")
   const checkIn = useCheckIn()
   const checkOut = useCheckOut()
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null)
@@ -109,29 +118,41 @@ export function SecurityPage() {
     async (payload: string) => {
       const value = payload.trim()
       if (!value || inFlight.current) return
+      if (mode === "room" && !roomId) {
+        toast.error("Choose the room first", { description: "Pick which room you are scanning at." })
+        return
+      }
       inFlight.current = true
       let result: ScanOutcome
       try {
-        const res = await scan.mutateAsync({ payload: value })
-        result = { ok: true, detail: res.detail, visit: res.visit, at: new Date(), payload: value }
-        toast.success("Checked in", { description: res.visit?.visitor.full_name })
+        if (mode === "room") {
+          // Room scans record attendance; they do not consume the pass.
+          const res = await roomScan.mutateAsync({ payload: value, room: Number(roomId) })
+          result = { ok: true, title: "Attendance recorded", detail: res.detail, visit: res.visit, at: new Date(), payload: value }
+          toast.success("Attendance recorded", { description: res.visit?.visitor.full_name })
+        } else {
+          const res = await scan.mutateAsync({ payload: value })
+          result = { ok: true, title: "Entry granted", detail: res.detail, visit: res.visit, at: new Date(), payload: value }
+          toast.success("Checked in", { description: res.visit?.visitor.full_name })
+        }
       } catch (e) {
         const data = (e as { data?: ScanResult }).data
         result = {
           ok: false,
+          title: mode === "room" ? "Not recorded" : "Entry denied",
           detail: data?.detail ?? formatApiError(e),
           visit: data?.visit ?? null,
           at: new Date(),
           payload: value,
         }
-        toast.error("Entry denied", { description: result.detail })
+        toast.error(result.title, { description: result.detail })
       } finally {
         inFlight.current = false
       }
       setOutcome(result)
       setHistory((h) => [result, ...h].slice(0, 12))
     },
-    [scan],
+    [scan, roomScan, mode, roomId],
   )
 
   // Hardware barcode scanners type the payload and press Enter: capture it
@@ -190,8 +211,12 @@ export function SecurityPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Gate scanner"
-        description="Scan a visitor's QR pass to verify the signature, check expiry and single-use, then admit them in one step."
+        title={mode === "gate" ? "Gate scanner" : "Room attendance"}
+        description={
+          mode === "gate"
+            ? "Scan a visitor's QR pass to verify the signature, check expiry and single-use, then admit them in one step."
+            : "Scan a checked-in visitor's pass at the room door to record attendance. The same pass can be scanned at every room they attend."
+        }
         actions={
           <Badge tone="success" className="gap-1.5">
             <ShieldCheck className="size-3" /> {inside.data.length} on site
@@ -204,6 +229,38 @@ export function SecurityPage() {
           {outcome && <ScanResultCard outcome={outcome} onDismiss={() => setOutcome(null)} onOpen={setSelected} />}
           <Card>
             <CardContent className="space-y-4 p-4 sm:p-5">
+              <div className="grid grid-cols-2 gap-2">
+                {([["gate", "Gate entry", ShieldCheck], ["room", "Room attendance", DoorOpen]] as const).map(([m, label, Icon]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => { setMode(m); setOutcome(null) }}
+                    aria-pressed={mode === m}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition",
+                      mode === m ? "border-primary bg-primary-soft text-primary" : "border-border bg-card hover:border-border-strong",
+                    )}
+                  >
+                    <Icon className="size-4" /> {label}
+                  </button>
+                ))}
+              </div>
+              {mode === "room" && (
+                <div className="space-y-1.5">
+                  <label htmlFor="scan-room" className="text-xs font-medium text-muted-foreground">Scanning at</label>
+                  <Select value={roomId} onValueChange={setRoomId}>
+                    <SelectTrigger id="scan-room"><SelectValue placeholder={rooms.isLoading ? "Loading rooms…" : (rooms.data ?? []).length === 0 ? "No rooms set up yet" : "Choose the room"} /></SelectTrigger>
+                    <SelectContent>
+                      {(rooms.data ?? []).filter((r) => r.is_active).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>{r.number}{r.name ? ` · ${r.name}` : ""} <span className="text-muted-foreground">({r.building_name}{r.floor_name ? `, ${r.floor_name}` : ""})</span></SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(rooms.data ?? []).length === 0 && !rooms.isLoading && (
+                    <p className="text-[11px] text-muted-foreground">Admins add rooms under Settings → Rooms.</p>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-sm font-semibold">
                   <ScanLine className="size-4 text-primary" /> Camera
@@ -213,7 +270,7 @@ export function SecurityPage() {
                 </Button>
               </div>
               {cameraOn ? (
-                <QrScanner onScan={(p) => void handleScan(p)} paused={scan.isPending} />
+                <QrScanner onScan={(p) => void handleScan(p)} paused={scan.isPending || roomScan.isPending || (mode === "room" && !roomId)} />
               ) : (
                 <div className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
                   Camera is off
@@ -232,7 +289,7 @@ export function SecurityPage() {
                 </label>
                 <div className="flex gap-2">
                   <Input id="manual-code" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="token|signature" className="font-mono text-xs" />
-                  <Button type="submit" disabled={!manual.trim()} loading={scan.isPending}>Verify</Button>
+                  <Button type="submit" disabled={!manual.trim() || (mode === "room" && !roomId)} loading={scan.isPending || roomScan.isPending}>{mode === "room" ? "Record" : "Verify"}</Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground">A USB/Bluetooth barcode scanner also works anywhere on this page.</p>
               </form>

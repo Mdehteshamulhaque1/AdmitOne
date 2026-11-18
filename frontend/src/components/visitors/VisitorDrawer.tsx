@@ -7,6 +7,7 @@ import {
   Calendar,
   Car,
   Clock,
+  GraduationCap,
   IdCard,
   Mail,
   MapPin,
@@ -29,6 +30,7 @@ import { BlacklistDialog } from "@/components/visitors/BlacklistDialog"
 import { VisitorEditDialog } from "@/components/visitors/VisitorEditDialog"
 import { useAuth } from "@/lib/auth"
 import { useUnblacklistVisitor, useVisitorVisits } from "@/lib/queries"
+import { categoryLabel } from "@/lib/student-options"
 import { formatApiError, type Visit, type Visitor } from "@/lib/types"
 import { formatClock, formatDate, formatDuration } from "@/lib/utils"
 
@@ -104,7 +106,7 @@ export function VisitorDrawer({
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {[v.company, v.designation].filter(Boolean).join(" · ") || "Independent visitor"}
+                    {[v.company, v.designation].filter(Boolean).join(" · ") || (v.category ? categoryLabel(v.category) : "Independent visitor")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {v.visit_count ?? list.length} visit{(v.visit_count ?? list.length) === 1 ? "" : "s"} · since {formatDate(v.created_at)}
@@ -170,6 +172,12 @@ export function VisitorDrawer({
                     />
                   )}
                   <InfoRow icon={<Car className="size-4" />} label="Vehicle" value={[v.vehicle_type, v.vehicle_number].filter(Boolean).join(" ")} />
+                  {v.category && <InfoRow icon={<GraduationCap className="size-4" />} label="Visitor type" value={categoryLabel(v.category)} />}
+                  {v.state && <InfoRow icon={<MapPin className="size-4" />} label="Home state" value={v.state} />}
+                  {v.university && <InfoRow icon={<GraduationCap className="size-4" />} label="University / college" value={v.university} />}
+                  {(v.qualification || v.passing_year) && (
+                    <InfoRow icon={<GraduationCap className="size-4" />} label="Qualification" value={[v.qualification, v.passing_year ? `batch ${v.passing_year}` : ""].filter(Boolean).join(" · ")} />
+                  )}
                   {v.address !== undefined && (
                     <InfoRow icon={<MapPin className="size-4" />} label="Address" value={v.address} />
                   )}

@@ -73,6 +73,12 @@ export interface VisitorAccount {
   phone: string
   company: string
   designation: string
+  /** Training-centre profile; all optional, "Other" values are free text. */
+  category: string
+  state: string
+  university: string
+  qualification: string
+  passing_year: number | null
   created_at: string
   last_login: string | null
 }
@@ -95,6 +101,7 @@ export interface VisitorVisit {
   source: string
   visit_type: string
   visit_type_label: string
+  visitor_category: string
   purpose: string
   visit_date: string
   expected_arrival: string
@@ -105,6 +112,9 @@ export interface VisitorVisit {
   department_name: string
   building_name: string
   floor_name: string
+  /** Assigned by staff on approval; empty until then. */
+  room_label: string
+  room_number: string
   host_name: string
   host_designation: string
   phone_masked: string
@@ -125,7 +135,10 @@ export interface VisitorVisit {
 
 export interface VisitorBookingPayload {
   organization: string
-  visit_type: string
+  /** Catalogue path: who is visiting (drives the purpose list). */
+  category?: string
+  /** Legacy static path; not needed when `category` is sent. */
+  visit_type?: string
   department?: number | null
   building?: number | null
   floor?: number | null

@@ -164,7 +164,7 @@ class VisitorBookingsView(_VisitorView):
             request.visitor_account,
             org,
             audit_ip=client_ip(request),
-            visit_type=data["visit_type"],
+            visit_type=data.get("visit_type", ""),
             department_id=data.get("department"),
             building_id=data.get("building"),
             floor_id=data.get("floor"),
@@ -175,6 +175,7 @@ class VisitorBookingsView(_VisitorView):
             purpose=data["purpose"],
             purpose_other=data.get("purpose_other", ""),
             notes=data.get("notes", ""),
+            **({"category": data["category"]} if data.get("category") else {}),
         )
         if not ok:
             return Response(msg, status=status.HTTP_400_BAD_REQUEST)

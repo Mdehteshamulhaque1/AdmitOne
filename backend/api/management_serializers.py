@@ -12,8 +12,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from accounts.models import Role, User
-from organizations.models import AuditLog, Building, Department, Employee, Organization
-from visits.models import Blacklist, BlacklistReason, Visitor
+from organizations.models import AuditLog, Building, Department, Employee, Floor, Organization
+from visits.models import Blacklist, BlacklistReason, Room, RoomAttendance, Visitor
+from visits.purposes import catalogue_for, validate_catalogue
 
 
 # --------------------------------------------------------------- organization
@@ -25,15 +26,22 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     logo = serializers.ImageField(read_only=True)
     booking_path = serializers.SerializerMethodField()
+    # The catalogue actually in force: the saved one, or the training-centre
+    # defaults when the workspace has not customised it yet.
+    visitor_catalogue = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = [
             "id", "name", "slug", "tagline", "logo", "address", "city", "country",
             "timezone", "working_hours_start", "working_hours_end", "weekly_working_hours",
-            "visitor_policies", "security_policies", "booking_path", "created_at",
+            "visitor_policies", "security_policies", "visitor_catalogue", "booking_path",
+            "created_at",
         ]
-        read_only_fields = ["id", "slug", "logo", "created_at", "booking_path"]
+        read_only_fields = ["id", "slug", "logo", "created_at", "booking_path", "visitor_catalogue"]
+
+    def get_visitor_catalogue(self, obj):
+        return catalogue_for(obj)
 
     def validate_weekly_working_hours(self, value):
         """Per-weekday windows: ``{"0".."6": [{"start": "HH:MM", "end": "HH:MM"}, ...]}``.
@@ -106,6 +114,16 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         slot = value.get("slot_duration_minutes")
         if slot is not None and (not isinstance(slot, int) or not 5 <= slot <= 480):
             raise serializers.ValidationError("slot_duration_minutes must be 5-480.")
+        catalogue = value.get("visitor_catalogue")
+        if catalogue is not None:
+            if catalogue == {} or catalogue == []:
+                # Empty = "back to the defaults".
+                value = {k: v for k, v in value.items() if k != "visitor_catalogue"}
+            else:
+                try:
+                    value["visitor_catalogue"] = validate_catalogue(catalogue)
+                except ValueError as exc:
+                    raise serializers.ValidationError({"visitor_catalogue": str(exc)})
         return value
 
     def validate_security_policies(self, value):
@@ -128,14 +146,26 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 # ------------------------------------------------------------------ buildings
 
 
+class FloorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Floor
+        fields = ["id", "name", "level"]
+
+
 class BuildingWriteSerializer(serializers.ModelSerializer):
+    """``floors`` is the count; ``floor_list`` the rows kept in sync with it
+    by the viewset (so rooms can be placed on a floor)."""
+
+    floor_list = FloorSerializer(source="floor_set", many=True, read_only=True)
+    room_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Building
         fields = [
             "id", "name", "address", "floors", "entry_gates", "exit_gates",
-            "has_reception_desk", "created_at",
+            "has_reception_desk", "floor_list", "room_count", "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "floor_list", "room_count"]
 
     def validate_name(self, value):
         value = (value or "").strip()
@@ -436,3 +466,93 @@ class ScanSerializer(serializers.Serializer):
 
 class VisitCancelSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, max_length=120)
+
+
+# --------------------------------------------------------------------- rooms
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    """A room inside one of the workspace's buildings (``/api/rooms/``)."""
+
+    building_name = serializers.CharField(source="building.name", read_only=True)
+    floor_name = serializers.CharField(source="floor.name", read_only=True, default="")
+    room_type_label = serializers.CharField(source="get_room_type_display", read_only=True)
+    label = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Room
+        fields = [
+            "id", "building", "building_name", "floor", "floor_name", "number", "name",
+            "room_type", "room_type_label", "capacity", "is_active", "label", "created_at",
+        ]
+        read_only_fields = ["id", "created_at", "label", "building_name", "floor_name", "room_type_label"]
+        # The DB constraint is case-sensitive and DRF would report it as a
+        # non-field error; ``validate`` below does a friendlier, case-
+        # insensitive check attached to ``number``.
+        validators = []
+
+    def _org(self):
+        return self.context["request"].user.organization_id
+
+    def validate_building(self, value):
+        if value.organization_id != self._org():
+            raise serializers.ValidationError("Choose a building in your workspace.")
+        return value
+
+    def validate_number(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Enter the room number or door code.")
+        return value
+
+    def validate(self, attrs):
+        building = attrs.get("building", getattr(self.instance, "building", None))
+        floor = attrs.get("floor", getattr(self.instance, "floor", None))
+        if floor is not None and building is not None and floor.building_id != building.pk:
+            raise serializers.ValidationError({"floor": "That floor is not in the chosen building."})
+        number = attrs.get("number", getattr(self.instance, "number", None))
+        if building is not None and number:
+            clash = Room.objects.filter(building=building, number__iexact=number)
+            if self.instance is not None:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError(
+                    {"number": f"Room {number} already exists in {building.name}."}
+                )
+        return attrs
+
+
+class RoomAttendanceSerializer(serializers.ModelSerializer):
+    """One room scan, for the visit drawer and the attendance report."""
+
+    visit_id = serializers.IntegerField(source="visit.pk", read_only=True)
+    visit_reference = serializers.CharField(source="visit.visit_id", read_only=True)
+    visitor_name = serializers.CharField(source="visit.visitor.full_name", read_only=True)
+    visitor_category = serializers.CharField(source="visit.visitor_category", read_only=True)
+    purpose = serializers.CharField(source="visit.purpose", read_only=True)
+    room_label = serializers.CharField(source="room.label", read_only=True)
+    room_number = serializers.CharField(source="room.number", read_only=True)
+    building_name = serializers.CharField(source="room.building.name", read_only=True)
+    scanned_by_name = serializers.CharField(source="scanned_by.full_name", read_only=True, default="")
+
+    class Meta:
+        model = RoomAttendance
+        fields = [
+            "id", "visit_id", "visit_reference", "visitor_name", "visitor_category", "purpose",
+            "room", "room_label", "room_number", "building_name", "scanned_by_name",
+            "scanned_at", "note",
+        ]
+        read_only_fields = fields
+
+
+class RoomScanSerializer(ScanSerializer):
+    """Payload for ``POST /api/visits/room_scan/``: a pass plus the room."""
+
+    room = serializers.IntegerField()
+    note = serializers.CharField(required=False, allow_blank=True, max_length=200)
+
+
+class RoomAssignSerializer(serializers.Serializer):
+    """``room`` may be null to clear the assignment."""
+
+    room = serializers.IntegerField(required=False, allow_null=True)

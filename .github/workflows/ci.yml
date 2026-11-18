@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  backend:
+    name: Django tests & checks (SQLite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements.lock
+
+      - name: Install dependencies
+        # The lock, not requirements.txt: every direct dependency is `>=` with
+        # no upper bound except Django's, so installing from ranges means the
+        # next deploy can pull a release that has never run this suite. The
+        # lock reconstructs the tree the 657 tests were verified against.
+        run: pip install -r requirements.lock
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Migration state is committed
+        # A model change that ships without its migration leaves every deploy's
+        # `preDeployCommand: migrate` applying a schema that does not match the
+        # code, which fails at runtime rather than at boot. Cheapest possible
+        # place to catch it.
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Unit tests
+        run: python manage.py test
+
+      - name: End-to-end smoke tests
+        run: python manage.py test e2e_smoke
+
+      - name: Static files pipeline
+        run: python manage.py collectstatic --noinput
+
+      - name: Production deploy check
+        # Every variable below is a *guard input*, not optional configuration:
+        # config/settings.py raises ImproperlyConfigured at import time in
+        # production when one is missing, so omitting any of them makes this step
+        # fail before it checks anything. They are placeholders — nothing here
+        # connects to SMTP or PostgreSQL.
+        env:
+          DJANGO_ENV: production
+          DJANGO_DEBUG: "False"
+          SECRET_KEY: ci-only-not-a-real-production-secret-0123456789abcdef
+          ALLOWED_HOSTS: securegate-api.onrender.com
+          DATABASE_URL: postgresql://postgres.placeholder:secret@pw.example.com:5432/postgres?sslmode=require
+          QR_SIGNING_KEY: ci-only-qr-signing-key-not-a-real-secret-abcdefghij
+          # Required by config.settings._validate_production_email(): a
+          # production boot refuses a console backend, missing host/credentials
+          # and a missing from-address.
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: smtp.example.com
+          EMAIL_PORT: "587"
+          EMAIL_USE_TLS: "True"
+          EMAIL_HOST_USER: ci-only@example.com
+          EMAIL_HOST_PASSWORD: ci-only-not-a-real-password
+          DEFAULT_FROM_EMAIL: no-reply@example.com
+        run: python manage.py check --deploy
+
+  backend-postgres:
+    name: Django tests on PostgreSQL (no test may skip)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: securegate
+          POSTGRES_PASSWORD: securegate
+          POSTGRES_DB: securegate_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U securegate"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://securegate:securegate@localhost:5432/securegate_test
+      # config/settings.py defaults sslmode to "require" for any PostgreSQL
+      # engine, because Supabase mandates TLS. The CI service container has no
+      # certificate, so without this the whole job dies on connect with
+      # "server does not support SSL, but SSL was required" -- which is a
+      # connection failure, not a test failure, and gives no clue what is wrong.
+      POSTGRES_SSL_MODE: disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements.lock
+
+      - name: Install dependencies
+        # The lock, not requirements.txt: every direct dependency is `>=` with
+        # no upper bound except Django's, so installing from ranges means the
+        # next deploy can pull a release that has never run this suite. The
+        # lock reconstructs the tree the 657 tests were verified against.
+        run: pip install -r requirements.lock
+
+      - name: Django system check
+        run: python manage.py check
+
+      # This is the job the concurrency guarantees actually live in.
+      #
+      # On SQLite the two row-locking tests and the threaded single-use test
+      # cannot express what they claim to test -- SQLite takes a coarse
+      # database-level write lock and `select_for_update` is a no-op -- so they
+      # skip. A single SQLite-only pipeline therefore never runs them, and the
+      # invariants behind QR redemption have been untested in CI since they were
+      # written. Running the same suite against a real PostgreSQL is what makes
+      # the conditional-UPDATE single-use claim and the concurrent-visit
+      # handling evidence rather than assertion.
+      #
+      # StrictSkipRunner turns any remaining skip into a failure, so this job
+      # cannot quietly shrink its own coverage: if a guard starts skipping
+      # because the environment changed, the build says so.
+      - name: Unit tests
+        run: >-
+          python manage.py test
+          --testrunner=config.testrunner.StrictSkipRunner
+
+  frontend:
+    name: Frontend typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build

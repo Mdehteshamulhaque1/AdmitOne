@@ -1,0 +1,174 @@
+# Render Infrastructure as Code
+# Deploy with: connect this repo → Root Directory: backend
+# The database is Supabase PostgreSQL (Session Pooler) — NOT Render Postgres.
+# DATABASE_URL is a secret you set in the Render dashboard (never in Git).
+
+services:
+  # Django Web Service (API + server-rendered app)
+  - type: web
+    name: securegate-api
+    runtime: python3
+    # Starter, not free, and the reason is the disks below rather than the CPU.
+    # Render's filesystem is ephemeral: every deploy, and every rebuild,
+    # discards it. Persistent disks are not offered on the free plan at all --
+    # a blueprint that declares one against a free service fails to apply -- so
+    # free is not a cheaper version of this configuration, it is a different
+    # one in which every visitor photo and ID scan is lost on each deploy.
+    plan: starter
+    region: oregon
+    rootDir: backend
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+    # Run Django migrations against Supabase before each deploy.
+    preDeployCommand: python manage.py migrate
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 60
+    # Mounted exactly where config/settings.py writes, which is under BASE_DIR
+    # and therefore under rootDir:
+    #   MEDIA_ROOT        -> backend/media
+    #   PRIVATEMEDIA_ROOT -> backend/private_media
+    # Two disks rather than one because PRIVATEMEDIA_ROOT holds scans of
+    # passports and ID cards, which is the one directory whose loss is a
+    # security event rather than a cosmetic one. Render's build step copies the
+    # repository over the service directory; a disk mount is a separate
+    # filesystem, so these survive it.
+    disk:
+      - name: securegate-media
+        mountPath: /opt/render/project/src/backend/media
+        sizeGB: 1
+      - name: securegate-private-media
+        mountPath: /opt/render/project/src/backend/private_media
+        sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: DJANGO_ENV
+        value: "production"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # Supabase connection string (Session Pooler, port 5432).
+      # Set this in Render Dashboard → Environment. Never commit it.
+      - key: DATABASE_URL
+        sync: false
+      # Dedicated QR-pass signing key. Separate from SECRET_KEY on purpose, so
+      # rotating SECRET_KEY does not invalidate every issued QR pass. Generate
+      # with:  python -c "import secrets; print(secrets.token_urlsafe(50))"
+      # To rotate, add the old key to QR_SIGNING_PREVIOUS_KEYS first, then set
+      # the new key here.
+      - key: QR_SIGNING_KEY
+        sync: false
+      # Email. config.settings._validate_production_email() refuses to boot in
+      # production without a real SMTP backend, host and credentials, so these
+      # are declared here rather than left to the dashboard: a `sync: false`
+      # entry makes Render *prompt* for the value, whereas an undeclared
+      # variable is silently absent and produces a crash-looping service.
+      #   EMAIL_HOST_USER is the SendGrid/Postmark/SMTP username,
+      #   EMAIL_HOST_PASSWORD the matching API key or app password.
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # Per-message SMTP timeout, seconds. Bounded at 600 in settings.py.
+      - key: EMAIL_TIMEOUT
+        value: "30"
+    healthCheckPath: /api/health/
+    autoDeploy: true
+
+  # Scheduled jobs. The management commands need an external scheduler; these
+  # cron services run the same code with the same environment as the web
+  # service (set the identical secrets on each in the Render dashboard).
+  - type: cron
+    name: securegate-reminders
+    runtime: python3
+    plan: starter
+    region: oregon
+    rootDir: backend
+    schedule: "*/15 * * * *"          # every 15 minutes: due visit reminders
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py send_visit_reminders
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: DJANGO_ENV
+        value: "production"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DATABASE_URL
+        sync: false
+      - key: QR_SIGNING_KEY
+        sync: false
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+
+  - type: cron
+    name: securegate-nightly
+    runtime: python3
+    plan: starter
+    region: oregon
+    rootDir: backend
+    schedule: "30 2 * * *"            # 02:30 UTC daily: archive + purge sessions
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py archive_old_visits && python manage.py purge_expired_sessions
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: DJANGO_ENV
+        value: "production"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DATABASE_URL
+        sync: false
+      - key: QR_SIGNING_KEY
+        sync: false
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false

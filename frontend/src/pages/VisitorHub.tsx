@@ -147,53 +147,113 @@ function StepRail({ current }: { current: Step }) {
 
 function OrganisationStep({ preset, onPick }: { preset: string; onPick: (org: OrganizationResult) => void }) {
   const [q, setQ] = useState("")
-  const search = useOrganizationSearch(q)
+  const [picked, setPicked] = useState("")
+  const directory = useOrganizationSearch(q)
   const presetCtx = useOrganizationContext(preset)
 
   useEffect(() => {
     if (preset && presetCtx.data) {
       const o = presetCtx.data.organization
-      onPick({ id: o.id, name: o.name, slug: o.slug, tagline: o.tagline, city: o.city, country: o.country })
+      onPick({ id: o.id, name: o.name, slug: o.slug, tagline: o.tagline, city: o.city, country: o.country, buildings: presetCtx.data.buildings })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, presetCtx.data])
+
+  const list = directory.data ?? []
+  const floorsLabel = (floors: { level: number; name: string }[]) => {
+    if (floors.length === 0) return ""
+    const sorted = [...floors].sort((a, b) => a.level - b.level)
+    return floors.length <= 3 ? sorted.map((f) => f.name).join(", ") : `${sorted[0].name} – ${sorted[sorted.length - 1].name} (${floors.length} floors)`
+  }
 
   return (
     <Card>
       <CardContent className="p-5 sm:p-7">
         <h2 className="text-xl font-bold tracking-tight">Where are you visiting?</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Search the organisation by name or city. If you were given a booking link, it is already selected.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Pick the company from the directory below. Each entry lists its buildings and floors; use the search box to narrow the list. If you were given a booking link, it is already selected.
+        </p>
         {preset && presetCtx.isError && (
-          <Alert variant="danger" className="mt-4"><XCircle className="mt-0.5 size-4 shrink-0" /><span>We couldn't find an organisation for the link <code>/{preset}</code>. Search for it below instead.</span></Alert>
+          <Alert variant="danger" className="mt-4"><XCircle className="mt-0.5 size-4 shrink-0" /><span>We couldn't find an organisation for the link <code>/{preset}</code>. Choose it from the directory instead.</span></Alert>
         )}
         {preset && presetCtx.isLoading && <Skeleton className="mt-4 h-12 w-full" />}
-        <div className="relative mt-5">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Acme, Northwind, Pune…" className="h-11 pl-9" autoFocus />
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by company, building or city…" className="h-11 pl-9" aria-label="Filter the directory" />
+          </div>
+          <Select
+            value={picked}
+            onValueChange={(slug) => {
+              setPicked(slug)
+              const org = list.find((o) => o.slug === slug)
+              if (org) onPick(org)
+            }}
+          >
+            <SelectTrigger className="h-11" aria-label="Choose a company from the directory">
+              <SelectValue placeholder={directory.isLoading ? "Loading directory…" : `Choose a company (${list.length})`} />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              {list.map((o) => (
+                <SelectItem key={o.slug} value={o.slug}>
+                  <span className="font-medium">{o.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {[o.city, ...o.buildings.map((b) => `${b.name}${b.floors.length ? ` · ${floorsLabel(b.floors)}` : ""}`)].filter(Boolean).join(" · ")}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="mt-3 space-y-2">
-          {q.trim().length < 2 ? (
-            <p className="text-xs text-muted-foreground">Type at least two characters.</p>
-          ) : search.isLoading ? (
-            <Skeleton className="h-14 w-full" />
-          ) : (search.data ?? []).length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No organisation matches “{q}”. Check the spelling or ask your host for their booking link.</p>
+
+        <div className="mt-4 overflow-hidden rounded-xl border border-border">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-border bg-surface-2 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>Company</span>
+            <span>Building · floors</span>
+            <span className="sr-only">Select</span>
+          </div>
+          {directory.isLoading ? (
+            <div className="space-y-2 p-3"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+          ) : directory.isError ? (
+            <p className="p-4 text-sm text-danger">Couldn't load the directory. {formatApiError(directory.error)}</p>
+          ) : list.length === 0 ? (
+            <p className="p-5 text-center text-sm text-muted-foreground">
+              {q ? <>No company matches “{q}”. Try another spelling, or ask your host for their booking link.</> : "No organisations are registered yet."}
+            </p>
           ) : (
-            (search.data ?? []).map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onPick(o)}
-                className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition hover:border-primary/40 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Building2 className="size-5" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">{o.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{[o.tagline, o.city, o.country].filter(Boolean).join(" · ") || o.slug}</span>
-                </span>
-                <ArrowRight className="size-4 text-muted-foreground" />
-              </button>
-            ))
+            <ul className="max-h-[26rem] divide-y divide-border overflow-y-auto">
+              {list.map((o) => (
+                <li key={o.id}>
+                  <button
+                    type="button"
+                    onClick={() => { setPicked(o.slug); onPick(o) }}
+                    className="grid w-full grid-cols-[1fr_1fr_auto] items-center gap-3 px-3.5 py-3 text-left transition hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Building2 className="size-4" /></span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{o.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{[o.tagline, o.city, o.country].filter(Boolean).join(" · ") || o.slug}</span>
+                      </span>
+                    </span>
+                    <span className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
+                      {o.buildings.length === 0 ? (
+                        <span>No buildings listed</span>
+                      ) : (
+                        o.buildings.map((b) => (
+                          <span key={b.id} className="block truncate">
+                            <span className="font-medium text-foreground">{b.name}</span>
+                            {b.floors.length > 0 ? ` · ${floorsLabel(b.floors)}` : ""}
+                          </span>
+                        ))
+                      )}
+                    </span>
+                    <ArrowRight className="size-4 text-muted-foreground" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </CardContent>

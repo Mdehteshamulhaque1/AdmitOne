@@ -7,7 +7,7 @@ from rest_framework import serializers
 from organizations.models import Organization
 from visits.models import VisitType
 
-from .serializers import VisitorFacingVisitSerializer
+from .serializers import PublicBuildingSerializer, VisitorFacingVisitSerializer
 
 
 def _validate_password(value):
@@ -69,9 +69,13 @@ class VisitorChangePasswordSerializer(serializers.Serializer):
 
 
 class OrganizationSearchSerializer(serializers.ModelSerializer):
+    """Directory entry: the organisation plus its buildings and floors."""
+
+    buildings = PublicBuildingSerializer(many=True, read_only=True)
+
     class Meta:
         model = Organization
-        fields = ["id", "name", "slug", "tagline", "city", "country"]
+        fields = ["id", "name", "slug", "tagline", "city", "country", "buildings"]
 
 
 class VisitorBookingSerializer(serializers.Serializer):

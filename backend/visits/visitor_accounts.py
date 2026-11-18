@@ -129,14 +129,24 @@ def purge_expired_sessions():
 # ------------------------------------------------------------------- lookups
 
 
-def search_organizations(query, limit=10):
-    """Organisations a signed-in visitor may book with (name/city match)."""
+def search_organizations(query, limit=200):
+    """The directory a signed-in visitor can book with.
+
+    With no query this is the whole directory (every organisation with its
+    buildings and floors, like a lobby board); with a query it is filtered by
+    organisation name, slug, city or building name. Only signed-in visitors
+    can call this, so it is not an anonymous enumeration surface.
+    """
+    qs = Organization.objects.prefetch_related("buildings__floor_set").order_by("name")
     q = (query or "").strip()
-    if len(q) < 2:
-        return Organization.objects.none()
-    return Organization.objects.filter(
-        Q(name__icontains=q) | Q(slug__icontains=q) | Q(city__icontains=q)
-    ).order_by("name")[:limit]
+    if q:
+        qs = qs.filter(
+            Q(name__icontains=q)
+            | Q(slug__icontains=q)
+            | Q(city__icontains=q)
+            | Q(buildings__name__icontains=q)
+        ).distinct()
+    return qs[:limit]
 
 
 _VISIT_RELATIONS = (

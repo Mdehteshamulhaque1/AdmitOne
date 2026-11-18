@@ -7,7 +7,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError, buildUrl } from "@/lib/api"
-import type { BookingContext, VisitStatus } from "@/lib/types"
+import type { BookingBuilding, BookingContext, VisitStatus } from "@/lib/types"
 
 const TOKEN_KEY = "sg_visitor_token"
 const REQUEST_TIMEOUT_MS = 30_000
@@ -84,6 +84,8 @@ export interface OrganizationResult {
   tagline: string
   city: string
   country: string
+  /** Directory detail: the organisation's buildings and their floors. */
+  buildings: BookingBuilding[]
 }
 
 export interface VisitorVisit {
@@ -200,8 +202,8 @@ export function useVisitorLogout() {
 export function useOrganizationSearch(q: string) {
   return useQuery({
     queryKey: visitorKeys.orgs(q),
-    queryFn: () => visitorApi<OrganizationResult[]>(`/api/visitor/organizations/?q=${encodeURIComponent(q)}`),
-    enabled: q.trim().length >= 2,
+    queryFn: () => visitorApi<OrganizationResult[]>(`/api/visitor/organizations/?q=${encodeURIComponent(q.trim())}`),
+    enabled: Boolean(getVisitorToken()),
     staleTime: 60_000,
   })
 }

@@ -129,13 +129,12 @@ class VisitorChangePasswordView(_VisitorView):
 
 
 class VisitorOrganizationSearchView(_VisitorView):
-    """Organisations to book with. Requires a signed-in visitor and at least
-    two characters, so the directory is not an anonymous enumeration surface."""
+    """The booking directory: every organisation with its buildings and
+    floors (filtered by ``?q=``). Requires a signed-in visitor, so it is not
+    an anonymous enumeration surface."""
 
     def get(self, request):
         q = (request.query_params.get("q") or "").strip()
-        if len(q) < 2:
-            return Response([])
         return Response(OrganizationSearchSerializer(search_organizations(q), many=True).data)
 
 

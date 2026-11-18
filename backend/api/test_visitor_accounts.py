@@ -129,12 +129,18 @@ class BookingTests(VisitorAccountBase):
     def test_search_and_context_require_session(self):
         self.assertEqual(self.client.get("/api/visitor/organizations/?q=ac").status_code, 401)
         self.signup()
-        resp = self.client.get("/api/visitor/organizations/?q=a")
-        self.assertEqual(resp.data, [])
+        # no query -> the whole directory, with buildings and floors
+        resp = self.client.get("/api/visitor/organizations/")
+        self.assertEqual([o["slug"] for o in resp.data], ["acme", "globex"])
+        acme = resp.data[0]
+        self.assertEqual([b["name"] for b in acme["buildings"]], ["HQ"])
+        self.assertIn("floors", acme["buildings"][0])
         resp = self.client.get("/api/visitor/organizations/?q=acme")
         self.assertEqual([o["slug"] for o in resp.data], ["acme"])
         resp = self.client.get("/api/visitor/organizations/?q=pune")
         self.assertEqual(len(resp.data), 1)
+        resp = self.client.get("/api/visitor/organizations/?q=HQ")  # building name
+        self.assertEqual([o["slug"] for o in resp.data], ["acme"])
         ctx = self.client.get("/api/visitor/organizations/acme/")
         self.assertEqual(ctx.status_code, 200)
         self.assertEqual(ctx.data["organization"]["name"], "Acme Corp")

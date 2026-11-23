@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from . import management_views as mgmt
 from . import views
 from . import visitor_views as visitor
+from .student_pass_views import StudentPassViewSet
 
 visitor_urlpatterns = [
     path("visitor/auth/register/", visitor.VisitorRegisterView.as_view(), name="api-visitor-register"),
@@ -14,6 +15,7 @@ visitor_urlpatterns = [
     path("visitor/change-password/", visitor.VisitorChangePasswordView.as_view(), name="api-visitor-change-password"),
     path("visitor/organizations/", visitor.VisitorOrganizationSearchView.as_view(), name="api-visitor-orgs"),
     path("visitor/organizations/<slug:slug>/", visitor.VisitorOrganizationContextView.as_view(), name="api-visitor-org-context"),
+    path("visitor/student-pass/", visitor.VisitorStudentPassView.as_view(), name="api-visitor-student-pass"),
     path("visitor/bookings/", visitor.VisitorBookingsView.as_view(), name="api-visitor-bookings"),
     path("visitor/bookings/<int:pk>/", visitor.VisitorBookingDetailView.as_view(), name="api-visitor-booking"),
     path("visitor/bookings/<int:pk>/availability/", visitor.VisitorBookingAvailabilityView.as_view(), name="api-visitor-booking-availability"),
@@ -29,6 +31,7 @@ router.register("buildings", mgmt.BuildingViewSet, basename="api-buildings")
 router.register("departments", mgmt.DepartmentViewSet, basename="api-departments")
 router.register("rooms", mgmt.RoomViewSet, basename="api-rooms")
 router.register("team", mgmt.TeamViewSet, basename="api-team")
+router.register("student-passes", StudentPassViewSet, basename="api-student-passes")
 
 urlpatterns = [
     path("health/", views.HealthCheckView.as_view(), name="api-health"),
@@ -51,6 +54,8 @@ urlpatterns = [
     path("attendance/", mgmt.AttendanceListView.as_view(), name="api-attendance"),
     path("time/", mgmt.ServerTimeView.as_view(), name="api-time"),
     path("public/booking/<slug:slug>/hosts/", views.PublicBookingHostsView.as_view(), name="api-public-booking-hosts"),
+    path("public/notices/", views.PublicNoticesView.as_view(), name="api-public-notices"),
+    path("public/booking/<slug:slug>/calendar/", views.PublicBookingCalendarView.as_view(), name="api-public-booking-calendar"),
     path("public/booking/<slug:slug>/availability/", views.PublicBookingAvailabilityView.as_view(), name="api-public-booking-availability"),
     path("public/booking/<slug:slug>/", views.PublicBookingView.as_view(), name="api-public-booking"),
     path("dashboard/summary/", views.DashboardSummaryView.as_view(), name="api-dashboard-summary"),

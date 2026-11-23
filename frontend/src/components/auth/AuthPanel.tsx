@@ -5,15 +5,18 @@ import { Alert } from "@/components/ui/Alert"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Field } from "@/components/widgets/Field"
-import { OptionSelect } from "@/components/widgets/OptionSelect"
+import { SearchableSelect } from "@/components/widgets/SearchableSelect"
 import { useAuth } from "@/lib/auth"
 import {
+  COMPANIES,
   DEFAULT_VISITOR_CATEGORIES,
+  DESIGNATIONS,
+  EMAIL_DOMAINS,
   INDIAN_STATES,
   PASSING_YEARS,
   QUALIFICATIONS,
+  RELATIONSHIPS,
   UNIVERSITIES,
   toOptions,
 } from "@/lib/student-options"
@@ -47,6 +50,13 @@ interface AuthPanelProps {
   /** Called after a successful sign-in for the given role. */
   onSignedIn: (role: AuthRole) => void
   compact?: boolean
+  /**
+   * Portal style (visitor portal, admin portal): opens on sign-in, no
+   * create/sign-in tabs, a quiet "New here? Create an account" link instead.
+   */
+  portal?: boolean
+  /** Live values for a preview (the visitor pass on the booking page). */
+  onPreview?: (preview: { full_name: string; category: string; company: string; university: string; email: string }) => void
 }
 
 const ROLE_COPY: Record<AuthRole, { title: string; blurb: string; icon: typeof UserRound }> = {
@@ -65,6 +75,16 @@ const ROLE_COPY: Record<AuthRole, { title: string; blurb: string; icon: typeof U
 const STATE_OPTIONS = toOptions(INDIAN_STATES)
 const UNIVERSITY_OPTIONS = toOptions(UNIVERSITIES)
 const QUALIFICATION_OPTIONS = toOptions(QUALIFICATIONS)
+const COMPANY_OPTIONS = toOptions(COMPANIES)
+const RELATIONSHIP_OPTIONS = toOptions(RELATIONSHIPS)
+const DESIGNATION_OPTIONS = toOptions(DESIGNATIONS)
+const EMAIL_DOMAIN_OPTIONS = toOptions(EMAIL_DOMAINS)
+const PASSING_YEAR_OPTIONS = toOptions(PASSING_YEARS.map(String))
+
+function splitEmail(value: string): [string, string] {
+  const at = value.lastIndexOf("@")
+  return at > 0 ? [value.slice(0, at), value.slice(at + 1)] : [value, ""]
+}
 
 const EMPTY_FORM = {
   email: "",
@@ -81,7 +101,16 @@ const EMPTY_FORM = {
 }
 type FormState = typeof EMPTY_FORM
 
-export function AuthPanel({ role, onRoleChange, initialMode = "register", onSignedIn, compact }: AuthPanelProps) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 pt-1 sm:col-span-2">
+      <span className="text-sm font-semibold text-foreground">{children}</span>
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+    </div>
+  )
+}
+
+export function AuthPanel({ role, onRoleChange, initialMode = "register", onSignedIn, compact, onPreview, portal }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [show, setShow] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
@@ -106,6 +135,12 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
 
   const isStudent = form.category === "STUDENT"
 
+  useEffect(() => {
+    onPreview?.({ full_name: form.full_name, category: form.category, company: form.company, university: form.university, email: form.email })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.full_name, form.category, form.company, form.university, form.email])
+  const [emailLocal, emailDomain] = splitEmail(form.email)
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
@@ -126,9 +161,6 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
             qualification: isStudent ? form.qualification : "",
             passing_year: isStudent && form.passing_year ? Number(form.passing_year) : null,
           })
-          // registration returns a session; drop it so the sign-in step is explicit
-          const { clearVisitorToken } = await import("@/lib/visitor-api")
-          clearVisitorToken()
         } else {
           setStaffBusy(true)
           await staff.register({ email: form.email, full_name: form.full_name, phone: form.phone, password: form.password })
@@ -189,7 +221,7 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
           </div>
         )}
 
-        <div className="mb-4 inline-flex rounded-xl border border-border bg-secondary p-1">
+        {!portal && <div className="mb-4 inline-flex rounded-xl border border-border bg-secondary p-1">
           {(["register", "login"] as AuthMode[]).map((m) => (
             <button
               key={m}
@@ -197,21 +229,34 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
               onClick={() => { setMode(m); setErrors({}) }}
               className={cn("rounded-lg px-4 py-1.5 text-sm font-medium transition-colors", mode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
             >
-              {m === "register" ? "1 · Create account" : "2 · Sign in"}
+              {compact ? (m === "register" ? "New here" : "I have an account") : m === "register" ? "1 · Create account" : "2 · Sign in"}
             </button>
           ))}
-        </div>
+        </div>}
 
         <div className="flex items-center gap-2">
           <Icon className="size-5 text-primary" />
           <h2 className="text-xl font-bold tracking-tight">
             {mode === "register"
               ? role === "visitor" ? "Create your visitor account" : "Create your staff account"
+              : portal ? (role === "visitor" ? "Sign in to book a visit" : "Sign in to the admin console")
               : role === "visitor" ? "Sign in as a visitor" : "Sign in to the console"}
           </h2>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {mode === "register"
+          {portal
+            ? mode === "register"
+              ? role === "visitor"
+                ? "Tell us who you are once. After this, every booking takes a few taps."
+                : "After creating your account you sign in, then set up or join your organisation."
+              : role === "visitor"
+                ? "Use the email and password from your visitor account."
+                : "For admins, reception and security staff."
+            : compact
+            ? mode === "register"
+              ? "Tell us who you are once. After this, every booking takes a few taps."
+              : "Use the email and password you created."
+            : mode === "register"
             ? role === "visitor"
               ? "Step 1 of 2. Tell us who you are once; every booking after this is a few taps."
               : "Step 1 of 2. After creating the account you sign in, then set up or join your organisation."
@@ -233,14 +278,10 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
         <form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2" noValidate>
           {mode === "register" && (
             <>
+              <SectionLabel>About you</SectionLabel>
               {role === "visitor" && (
                 <Field id="a-cat" label="I am a" required error={errors.category} className="sm:col-span-2">
-                  <Select value={form.category} onValueChange={(v) => setValue("category", v)}>
-                    <SelectTrigger id="a-cat"><SelectValue placeholder="Choose one" /></SelectTrigger>
-                    <SelectContent>
-                      {DEFAULT_VISITOR_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect id="a-cat" value={form.category} onChange={(v) => { if (v !== form.category) setForm((f) => ({ ...f, category: v, company: "", designation: "" })) }} options={DEFAULT_VISITOR_CATEGORIES} placeholder="Search who you are" />
                 </Field>
               )}
               <Field id="a-name" label="Full name" required error={errors.full_name}>
@@ -252,32 +293,31 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
               {role === "visitor" && (
                 <>
                   <Field id="a-state" label="Home state" error={errors.state} className={isStudent ? "" : "sm:col-span-2"}>
-                    <OptionSelect id="a-state" value={form.state} onChange={(v) => setValue("state", v)} options={STATE_OPTIONS} placeholder="Choose your state" allowOther otherPlaceholder="State or country" />
+                    <SearchableSelect id="a-state" value={form.state} onChange={(v) => setValue("state", v)} options={STATE_OPTIONS} placeholder="Search your state" allowOther otherPlaceholder="State or country" />
                   </Field>
                   {isStudent ? (
                     <>
                       <Field id="a-uni" label="University / college" error={errors.university}>
-                        <OptionSelect id="a-uni" value={form.university} onChange={(v) => setValue("university", v)} options={UNIVERSITY_OPTIONS} placeholder="Choose your university" allowOther otherPlaceholder="Name of your university or college" />
+                        <SearchableSelect id="a-uni" value={form.university} onChange={(v) => setValue("university", v)} options={UNIVERSITY_OPTIONS} placeholder="Search your university" allowOther otherPlaceholder="Name of your university or college" />
                       </Field>
                       <Field id="a-qual" label="Qualification / background" error={errors.qualification}>
-                        <OptionSelect id="a-qual" value={form.qualification} onChange={(v) => setValue("qualification", v)} options={QUALIFICATION_OPTIONS} placeholder="Choose your degree" allowOther otherPlaceholder="e.g. B.Sc Physics" />
+                        <SearchableSelect id="a-qual" value={form.qualification} onChange={(v) => setValue("qualification", v)} options={QUALIFICATION_OPTIONS} placeholder="Search your degree" allowOther otherPlaceholder="e.g. B.Sc Physics" />
                       </Field>
                       <Field id="a-year" label="Passing year" error={errors.passing_year} hint="Final-year students: pick next year.">
-                        <Select value={form.passing_year} onValueChange={(v) => setValue("passing_year", v)}>
-                          <SelectTrigger id="a-year"><SelectValue placeholder="Year" /></SelectTrigger>
-                          <SelectContent>
-                            {PASSING_YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect id="a-year" value={form.passing_year} onChange={(v) => setValue("passing_year", v)} options={PASSING_YEAR_OPTIONS} placeholder="Search year" />
                       </Field>
                     </>
                   ) : (
                     <>
                       <Field id="a-company" label={form.category === "PARENT" ? "Student's name (if visiting for them)" : "Company / organisation"} error={errors.company}>
-                        <Input id="a-company" value={form.company} onChange={set("company")} autoComplete="organization" />
+                        {form.category === "PARENT" ? (
+                          <Input id="a-company" value={form.company} onChange={set("company")} placeholder="e.g. Ravi Kumar" autoComplete="off" />
+                        ) : (
+                          <SearchableSelect id="a-company" value={form.company} onChange={(v) => setValue("company", v)} options={COMPANY_OPTIONS} placeholder="Search company" allowOther otherPlaceholder="Company name" />
+                        )}
                       </Field>
-                      <Field id="a-desig" label={form.category === "PARENT" ? "Relationship" : "Designation"} error={errors.designation}>
-                        <Input id="a-desig" value={form.designation} onChange={set("designation")} autoComplete="organization-title" placeholder={form.category === "PARENT" ? "e.g. Father" : "e.g. HR Manager"} />
+                      <Field id="a-desig" label={form.category === "PARENT" ? "Your relationship to the student" : "Designation"} hint={form.category === "PARENT" ? "Are you the student's father, mother, guardian…?" : undefined} error={errors.designation}>
+                        <SearchableSelect id="a-desig" value={form.designation} onChange={(v) => setValue("designation", v)} options={form.category === "PARENT" ? RELATIONSHIP_OPTIONS : DESIGNATION_OPTIONS} placeholder={form.category === "PARENT" ? "Father, Mother, Guardian…" : "Search designation"} allowOther otherPlaceholder={form.category === "PARENT" ? "e.g. Uncle" : "e.g. HR Manager"} />
                       </Field>
                     </>
                   )}
@@ -285,8 +325,32 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
               )}
             </>
           )}
+          {mode === "register" && <SectionLabel>Sign-in details</SectionLabel>}
           <Field id="a-email" label="Email" required error={errors.email} className={mode === "login" ? "sm:col-span-2" : ""}>
-            <Input id="a-email" type="email" value={form.email} onChange={set("email")} autoComplete="email" />
+            {mode === "register" && role === "visitor" ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <Input
+                  id="a-email"
+                  type="text"
+                  inputMode="email"
+                  value={emailLocal}
+                  onChange={(e) => setValue("email", e.target.value + (emailDomain ? `@${emailDomain}` : ""))}
+                  placeholder="name"
+                  autoComplete="email"
+                />
+                <SearchableSelect
+                  value={emailDomain}
+                  onChange={(domain) => setValue("email", emailLocal ? `${emailLocal}@${domain}` : "")}
+                  options={EMAIL_DOMAIN_OPTIONS}
+                  placeholder="Domain"
+                  allowOther
+                  otherPlaceholder="Email domain"
+                  aria-label="Email domain"
+                />
+              </div>
+            ) : (
+              <Input id="a-email" type="email" value={form.email} onChange={set("email")} autoComplete="email" />
+            )}
           </Field>
           <Field
             id="a-pw"
@@ -305,8 +369,20 @@ export function AuthPanel({ role, onRoleChange, initialMode = "register", onSign
           </Field>
           <div className="sm:col-span-2">
             <Button type="submit" size="lg" className="w-full" loading={busy}>
-              {mode === "register" ? "Create account" : "Sign in & continue"} <ArrowRight className="size-4" />
+              {mode === "register" ? "Create account" : portal ? "Sign in" : "Sign in & continue"} <ArrowRight className="size-4" />
             </Button>
+            {portal && (
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                {mode === "login" ? (role === "visitor" ? "New here? " : "New staff member? ") : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={() => { setMode(mode === "login" ? "register" : "login"); setErrors({}); setCreated(null) }}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {mode === "login" ? (role === "visitor" ? "Create an account" : "Create a staff account") : "Sign in"}
+                </button>
+              </p>
+            )}
           </div>
         </form>
       </CardContent>

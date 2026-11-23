@@ -8,7 +8,7 @@ type ButtonSize = "sm" | "md" | "lg" | "icon" | "iconSm"
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-linear-to-r from-indigo-500 to-violet-500 text-[#ffffff] font-semibold hover:from-indigo-400 hover:to-violet-400 shadow-glow",
+    "bg-primary text-primary-foreground font-semibold hover:bg-primary-strong shadow-sm",
   secondary:
     "bg-card-soft text-foreground border border-border hover:border-border-strong hover:bg-card",
   outline:
@@ -17,7 +17,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   danger: "bg-destructive text-white hover:bg-red-500",
   success: "bg-success text-[#ffffff] font-semibold hover:brightness-110",
   accent:
-    "bg-linear-to-r from-[#6366f1] to-[#7c3aed] text-white font-semibold hover:from-[#0d9488] hover:to-[#2563eb] shadow-[0_10px_40px_-12px_rgba(99,102,241,0.65)] hover:shadow-[0_14px_50px_-12px_rgba(124,58,237,0.7)]",
+    "bg-primary text-primary-foreground font-semibold hover:bg-primary-strong shadow-[0_10px_30px_-12px_rgba(47,107,255,0.6)]",
   glass:
     "border border-border bg-surface-2 text-foreground backdrop-blur-md hover:bg-hover hover:border-border-strong",
 }

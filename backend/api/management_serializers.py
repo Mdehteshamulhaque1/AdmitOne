@@ -20,6 +20,48 @@ from visits.purposes import catalogue_for, validate_catalogue
 # --------------------------------------------------------------- organization
 
 
+MAX_PUBLIC_NOTICES = 20
+
+
+def clean_public_notices(notices):
+    """Validate the admin-written notices shown on the public Public Notice page.
+
+    Each notice: ``title`` (<=120), ``body`` (<=1000), ``published_on`` and an
+    optional ``until`` date (YYYY-MM-DD) after which it is hidden.
+    """
+    from datetime import date as _date
+
+    if not isinstance(notices, list):
+        raise serializers.ValidationError({"public_notices": "Notices must be a list."})
+    if len(notices) > MAX_PUBLIC_NOTICES:
+        raise serializers.ValidationError({"public_notices": f"Keep at most {MAX_PUBLIC_NOTICES} notices."})
+    cleaned = []
+    for n in notices:
+        if not isinstance(n, dict):
+            raise serializers.ValidationError({"public_notices": "Each notice must be an object."})
+        title = str(n.get("title", "")).strip()
+        body = str(n.get("body", "")).strip()
+        if not title:
+            raise serializers.ValidationError({"public_notices": "Every notice needs a title."})
+        if len(title) > 120 or len(body) > 1000:
+            raise serializers.ValidationError({"public_notices": "Titles are limited to 120 characters and details to 1000."})
+        dates = {}
+        for key in ("published_on", "until"):
+            raw = str(n.get(key) or "").strip()
+            if raw:
+                try:
+                    dates[key] = _date.fromisoformat(raw).isoformat()
+                except ValueError:
+                    raise serializers.ValidationError({"public_notices": f"{key} must be a date (YYYY-MM-DD)."})
+        cleaned.append({
+            "title": title,
+            "body": body,
+            "published_on": dates.get("published_on") or _date.today().isoformat(),
+            "until": dates.get("until", ""),
+        })
+    return cleaned
+
+
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     """Full workspace profile; ``slug`` is read-only because it is the public
     booking URL and changing it would break every link already shared."""
@@ -98,7 +140,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Unknown IANA timezone (e.g. Asia/Kolkata).")
         return value
 
-    def validate_visitor_policies(self, value):
+    def validate_visitor_policies(self, value):  # noqa: C901 - one branch per policy key
         if value is None:
             return {}
         if not isinstance(value, dict):
@@ -114,6 +156,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         slot = value.get("slot_duration_minutes")
         if slot is not None and (not isinstance(slot, int) or not 5 <= slot <= 480):
             raise serializers.ValidationError("slot_duration_minutes must be 5-480.")
+        notices = value.get("public_notices")
+        if notices is not None:
+            value["public_notices"] = clean_public_notices(notices)
         catalogue = value.get("visitor_catalogue")
         if catalogue is not None:
             if catalogue == {} or catalogue == []:

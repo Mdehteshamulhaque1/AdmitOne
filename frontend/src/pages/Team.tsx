@@ -89,6 +89,21 @@ function OrgSelects({ form, departments, buildings }: {
   )
 }
 
+/** Common designations at a training institute (suggestions; any text is allowed). */
+const DESIGNATIONS = [
+  "Centre Incharge", "Branch Manager", "HR Manager", "HR Executive", "Trainer", "Python Trainer",
+  "Data Science Trainer", "Student Counsellor", "Placement Officer", "Placement Coordinator",
+  "Front Desk Executive", "Accounts Executive", "Lab Assistant", "Security Officer",
+]
+
+function DesignationOptions() {
+  return (
+    <datalist id="designation-options">
+      {DESIGNATIONS.map((d) => <option key={d} value={d} />)}
+    </datalist>
+  )
+}
+
 export function TeamPage() {
   const { user } = useAuth()
   const [search, setSearch] = useState("")
@@ -180,6 +195,7 @@ export function TeamPage() {
 
   return (
     <div className="space-y-5">
+      <DesignationOptions />
       <PageHeader
         title="Team"
         description="Everyone who can sign in to this workspace. Roles decide what each person can do; the server enforces them on every request."
@@ -294,7 +310,7 @@ export function TeamPage() {
               </div>
             </Field>
             <Field id="m-phone" label="Phone"><Input id="m-phone" {...addForm.register("phone")} /></Field>
-            <Field id="m-desig" label="Designation"><Input id="m-desig" placeholder="e.g. Front desk lead" {...addForm.register("designation")} /></Field>
+            <Field id="m-desig" label="Designation"><Input id="m-desig" list="designation-options" placeholder="e.g. Trainer, Counsellor, HR Manager" {...addForm.register("designation")} /></Field>
             <Field id="m-eid" label="Employee ID" hint="Leave blank to generate one."><Input id="m-eid" {...addForm.register("employee_id")} /></Field>
             <OrgSelects form={addForm} departments={departments.data ?? []} buildings={buildings.data ?? []} />
             <DialogFooter className="sm:col-span-2">
@@ -320,7 +336,7 @@ export function TeamPage() {
                 <RoleSelect id="e-role" value={editForm.watch("role")} onChange={(v) => editForm.setValue("role", v)} />
               </div>
             </Field>
-            <Field id="e-desig" label="Designation"><Input id="e-desig" {...editForm.register("designation")} /></Field>
+            <Field id="e-desig" label="Designation"><Input id="e-desig" list="designation-options" {...editForm.register("designation")} /></Field>
             <Field id="e-eid" label="Employee ID"><Input id="e-eid" {...editForm.register("employee_id")} /></Field>
             <Field id="e-pw" label="Reset password" error={editForm.formState.errors.password?.message} hint="Leave blank to keep the current password.">
               <div className="relative">

@@ -200,7 +200,7 @@ def scope_for_visit(visit):
 # ------------------------------------------------------------------ booking
 
 
-def book_visit_for_account(account, org, *, audit_ip=None, **booking):
+def book_visit_for_account(account, org, *, audit_ip=None, identity=None, **booking):
     """Create a PENDING pre-booking for the account and claim the visitor row.
 
     The per-organisation ``Visitor`` record is resolved by phone through the
@@ -234,9 +234,22 @@ def book_visit_for_account(account, org, *, audit_ip=None, **booking):
         if not ok:
             return None, False, msg
         visitor = visit.visitor
+        update = []
         if visitor.account_id is None:
             visitor.account = account
-            visitor.save(update_fields=["account"])
+            update.append("account")
+        # The visitor's own identity for this gate pass: the latest photo and
+        # ID they submit replace the previous ones on their record here.
+        identity = identity or {}
+        if identity.get("document_type"):
+            visitor.document_type = identity["document_type"]
+            visitor.document_number = identity.get("document_number", "")
+            update += ["document_type", "document_number"]
+        if identity.get("photo"):
+            visitor.photo = identity["photo"]
+            update.append("photo")
+        if update:
+            visitor.save(update_fields=update + ["updated_at"])
     return visit, True, msg
 
 

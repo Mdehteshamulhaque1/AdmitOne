@@ -16,7 +16,7 @@ import { Footer } from "@/components/landing/Footer"
  */
 export default function LandingPage() {
   return (
-    <div className="theme-dark relative min-h-screen overflow-x-clip bg-[#0a0e1f] text-slate-100">
+    <div className="theme-dark relative min-h-screen overflow-x-clip bg-[#0f131a] text-slate-100">
       <Navbar />
       <main>
         <Hero />

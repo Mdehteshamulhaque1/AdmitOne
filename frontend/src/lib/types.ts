@@ -26,6 +26,7 @@ export type Permission =
   | "blacklist_visitor"
   | "badge_print"
   | "scan_qr"
+  | "manage_student_passes"
 
 export type VisitStatus =
   | "PENDING"
@@ -443,6 +444,62 @@ export interface ScanResult {
   detail: string
   dry_run?: boolean
   visit: Visit | null
+  /** Set when a 6-month student pass was scanned. */
+  kind?: "student"
+  direction?: "IN" | "OUT"
+  student_pass?: StudentPass | null
+}
+
+/* ---------------- Student passes (6 months, admitted students) ---------------- */
+
+export type StudentPassStatus = "ACTIVE" | "UPCOMING" | "EXPIRED" | "REVOKED"
+
+export interface StudentPass {
+  id: number
+  admission_number: string
+  course: string
+  batch: string
+  valid_from: string
+  valid_until: string
+  status: StudentPassStatus
+  days_left: number
+  renewed_count: number
+  issued_at: string
+  issued_by_name: string
+  revoked_at: string | null
+  revoked_reason: string
+  student: {
+    id: number
+    full_name: string
+    phone: string
+    email: string
+    photo: string | null
+    is_blacklisted: boolean
+    document_type?: string
+    document_number?: string
+  }
+  today: { direction: "IN" | "OUT"; at: string } | null
+  /** QR content ("SP|token|signature"); only for people who manage passes. */
+  payload: string | null
+  recent_scans?: StudentPassScan[]
+  emailed?: boolean
+}
+
+export interface StudentPassScan {
+  id: number
+  admission_number: string
+  student_name: string
+  course: string
+  direction: "IN" | "OUT"
+  scan_date: string
+  scanned_at: string
+  scanned_by_name: string
+}
+
+export interface StudentPassList {
+  results: StudentPass[]
+  counts: { ACTIVE: number; EXPIRING: number; EXPIRED: number; REVOKED: number; INSIDE: number }
+  expiring_soon_days: number
 }
 
 export const BLACKLIST_REASONS = [

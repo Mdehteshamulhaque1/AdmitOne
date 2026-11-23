@@ -716,3 +716,92 @@ class RoomAttendance(models.Model):
 
     def __str__(self):
         return f"{self.visit.visitor.full_name} @ {self.room.number} {self.scanned_at:%H:%M}"
+
+
+class StudentPass(models.Model):
+    """A long-term (6-month) gate pass for a student admitted to the institute.
+
+    Unlike ``QRPass`` (one visit, one scan) this pass is scanned every day:
+    the first scan of a day records IN, the next OUT, and so on. Identity
+    (name, contact number, photo, ID proof) lives on the student's ``Visitor``
+    record, so the same privacy rules apply. The QR encodes
+    ``SP|{token}|{signature}``; the signature is the workspace's QR signing key
+    over ``SP:{token}``, so a student pass can never be replayed as a visitor
+    pass (or the other way round) and is bound to one workspace.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        REVOKED = "REVOKED", "Revoked"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="student_passes"
+    )
+    visitor = models.ForeignKey(Visitor, on_delete=models.CASCADE, related_name="student_passes")
+    admission_number = models.CharField(max_length=40)
+    course = models.CharField(max_length=120)
+    batch = models.CharField(max_length=60, blank=True)
+    valid_from = models.DateField()
+    valid_until = models.DateField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    signature = models.CharField(max_length=64, editable=False)
+    signing_key_id = models.CharField(max_length=32, blank=True, default="", editable=False)
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    renewed_count = models.PositiveIntegerField(default=0)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-issued_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "admission_number"], name="uniq_student_admission_per_org"
+            ),
+        ]
+        indexes = [models.Index(fields=["organization", "status", "valid_until"], name="studentpass_org_status_idx")]
+
+    def __str__(self):
+        return f"{self.admission_number} {self.visitor.full_name} ({self.valid_from} - {self.valid_until})"
+
+    @staticmethod
+    def signing_subject(token):
+        return f"SP:{token}"
+
+    def sign(self):
+        self.signature = signing.sign(self.signing_subject(self.token), self.organization_id, self.token)
+        self.signing_key_id = signing.active_key_id()
+
+    @property
+    def payload(self):
+        return f"SP|{self.token}|{self.signature}"
+
+
+class StudentPassScan(models.Model):
+    """One gate scan of a student pass: entry (IN) or exit (OUT)."""
+
+    class Direction(models.TextChoices):
+        IN = "IN", "In"
+        OUT = "OUT", "Out"
+
+    student_pass = models.ForeignKey(StudentPass, on_delete=models.CASCADE, related_name="scans")
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="+")
+    direction = models.CharField(max_length=3, choices=Direction.choices)
+    scan_date = models.DateField()
+    scanned_at = models.DateTimeField(default=timezone.now)
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-scanned_at"]
+        indexes = [
+            models.Index(fields=["organization", "scan_date"], name="studentscan_org_date_idx"),
+            models.Index(fields=["student_pass", "-scanned_at"], name="studentscan_pass_time_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.student_pass.admission_number} {self.direction} {self.scanned_at:%Y-%m-%d %H:%M}"

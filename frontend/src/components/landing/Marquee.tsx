@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils"
 export function Marquee({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn("group relative overflow-hidden", className)}>
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-linear-to-r from-[#0a0e1f] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-linear-to-l from-[#0a0e1f] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-linear-to-r from-[#0f131a] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-linear-to-l from-[#0f131a] to-transparent" />
       <div className="flex w-max animate-marquee gap-14 group-hover:[animation-play-state:paused]">
         <div className="flex shrink-0 items-center gap-14">{children}</div>
         <div className="flex shrink-0 items-center gap-14" aria-hidden="true">

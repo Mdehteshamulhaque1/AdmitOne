@@ -11,7 +11,7 @@ export function Avatar({ name, src, className, ...props }: AvatarProps) {
   return (
     <span
       className={cn(
-        "relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-indigo-500/30 to-violet-500/30 text-sm font-semibold text-primary ring-1 ring-border-strong",
+        "relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-blue-500/30 to-cyan-500/30 text-sm font-semibold text-primary ring-1 ring-border-strong",
         className,
       )}
       {...props}

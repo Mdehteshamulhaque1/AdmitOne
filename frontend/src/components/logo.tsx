@@ -20,14 +20,14 @@ export function Logo({ size = 34, className }: LogoProps) {
     >
       <defs>
         <linearGradient id={`lg-${gid}`} x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#818cf8" />
-          <stop offset="0.55" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#c4b5fd" />
+          <stop stopColor="#5b8cff" />
+          <stop offset="0.55" stopColor="#2f6bff" />
+          <stop offset="1" stopColor="#c3cad6" />
         </linearGradient>
         <linearGradient id={`bg-${gid}`} x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6366f1" stopOpacity="0.2" />
-          <stop offset="0.5" stopColor="#8b5cf6" stopOpacity="0.18" />
-          <stop offset="1" stopColor="#7c3aed" stopOpacity="0.2" />
+          <stop stopColor="#2f6bff" stopOpacity="0.2" />
+          <stop offset="0.5" stopColor="#667085" stopOpacity="0.18" />
+          <stop offset="1" stopColor="#475467" stopOpacity="0.2" />
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="11" fill={`url(#bg-${gid})`} />
@@ -50,7 +50,7 @@ export function Logo({ size = 34, className }: LogoProps) {
       />
       <path
         d="M15.6 19 L18.8 22.2 L24.4 15.8"
-        stroke="#818cf8"
+        stroke="#5b8cff"
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"

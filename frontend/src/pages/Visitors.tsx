@@ -63,7 +63,7 @@ export function VisitorsPage() {
           can("create_visitor") && (
             <Button asChild>
               <Link to="/dashboard/register-visit">
-                <UserPlus className="size-4" /> Register visitor
+                <UserPlus className="size-4" /> Register visit
               </Link>
             </Button>
           )
@@ -102,11 +102,11 @@ export function VisitorsPage() {
             <EmptyState
               icon={<Users className="size-6" />}
               title={q || filter !== "all" ? "No visitors match" : "No visitors yet"}
-              description={q || filter !== "all" ? "Try a different search or filter." : "Register a visitor to start building your directory."}
+              description={q || filter !== "all" ? "Try a different search or filter." : "Register a visit to start building your directory."}
               action={
                 can("create_visitor") && (
                   <Button size="sm" asChild>
-                    <Link to="/dashboard/register-visit"><UserPlus className="size-4" /> Register visitor</Link>
+                    <Link to="/dashboard/register-visit"><UserPlus className="size-4" /> Register visit</Link>
                   </Button>
                 )
               }

@@ -277,6 +277,7 @@ class ProductionBootTests(SimpleTestCase):
         # fail spuriously.
         env = {k: v for k, v in os.environ.items() if not k.startswith("EMAIL_")}
         env.update(self.BASE_ENV)
+        env["ADMITONE_IGNORE_DOTENV"] = "1"  # the developer's .env must not leak in
         for key, value in env_overrides.items():
             if value is None:
                 env.pop(key, None)

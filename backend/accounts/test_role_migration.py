@@ -62,8 +62,10 @@ REVIEWED_GAINS = {
     # `view_visitor_pii` (home address, emergency contact) was split out of
     # the general visitor view for ADMIN and RECEPTIONIST only; SECURITY
     # deliberately does not hold it.
-    "SUPER_ADMIN": {"view_visitor_documents", "view_visitor_pii"},
-    "ORG_ADMIN": {"manage_org", "scan_qr", "view_visitor_documents", "view_visitor_pii"},
+    # `manage_student_passes` (2026-11, 6-month passes for admitted students)
+    # is a new ADMIN-only capability, so both legacy admin roles gain it.
+    "SUPER_ADMIN": {"view_visitor_documents", "view_visitor_pii", "manage_student_passes"},
+    "ORG_ADMIN": {"manage_org", "scan_qr", "view_visitor_documents", "view_visitor_pii", "manage_student_passes"},
     "EMPLOYEE": {"badge_print", "view_reports", "view_visitor_documents", "view_visitor_pii"},
     "AUDITOR": {"create_visitor", "badge_print", "view_visitor_documents", "view_visitor_pii"},
 }
@@ -299,6 +301,8 @@ class CurrentRolePermissionsTests(TestCase):
                 "manage_users", "view_reports", "view_audit_logs",
                 "blacklist_visitor", "badge_print", "scan_qr",
                 "view_visitor_documents", "view_visitor_pii",
+                # Added 2026-11 with 6-month student passes (admins only).
+                "manage_student_passes",
             },
         )
 

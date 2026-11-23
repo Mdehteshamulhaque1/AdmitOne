@@ -34,6 +34,9 @@ import type {
   VisitListParams,
   Visitor,
   VisitorUpdatePayload,
+  StudentPass,
+  StudentPassList,
+  StudentPassScan,
 } from "@/lib/types"
 
 export const queryKeys = {
@@ -530,4 +533,56 @@ export type ExportPeriod = "daily" | "weekly" | "monthly" | "all"
 export async function exportReportsCsv(period: ExportPeriod): Promise<void> {
   const filename = `admitone-${period}-${new Date().toISOString().slice(0, 10)}.csv`
   return downloadFile(`/api/reports/export/?period=${period}`, filename)
+}
+
+/* ---------------- Student passes (6 months) ---------------- */
+
+export function useStudentPasses(q = "", status = "") {
+  return useQuery({
+    queryKey: ["student-passes", q, status] as const,
+    queryFn: () => api<StudentPassList>(`/api/student-passes/${qs({ q, status })}`),
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useStudentPass(id: number | null) {
+  return useQuery({
+    queryKey: ["student-pass", id ?? 0] as const,
+    queryFn: () => api<StudentPass>(`/api/student-passes/${id}/`),
+    enabled: id !== null,
+  })
+}
+
+export function useStudentAttendance(date: string) {
+  return useQuery({
+    queryKey: ["student-attendance", date] as const,
+    queryFn: () => api<{ date: string; scans: StudentPassScan[] }>(`/api/student-passes/attendance/${qs({ date })}`),
+    refetchInterval: 30_000,
+  })
+}
+
+export function useStudentPassMutations() {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["student-passes"] })
+    void queryClient.invalidateQueries({ queryKey: ["student-pass"] })
+  }
+  const issue = useMutation({
+    mutationFn: (form: FormData) => api<StudentPass>("/api/student-passes/", { method: "POST", body: form }),
+    onSuccess: refresh,
+  })
+  const renew = useMutation({
+    mutationFn: (id: number) => api<StudentPass & { detail: string }>(`/api/student-passes/${id}/renew/`, { method: "POST", body: "{}" }),
+    onSuccess: refresh,
+  })
+  const revoke = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      api<StudentPass & { detail: string }>(`/api/student-passes/${id}/revoke/`, { method: "POST", body: JSON.stringify({ reason }) }),
+    onSuccess: refresh,
+  })
+  const sendEmail = useMutation({
+    mutationFn: (id: number) => api<{ detail: string }>(`/api/student-passes/${id}/send-email/`, { method: "POST", body: "{}" }),
+  })
+  return { issue, renew, revoke, sendEmail }
 }

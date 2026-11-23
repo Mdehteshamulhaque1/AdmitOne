@@ -42,7 +42,7 @@ function apply(resolved: ResolvedTheme) {
   root.dataset.theme = resolved
   root.style.colorScheme = resolved
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (meta) meta.content = resolved === "dark" ? "#0A0E1F" : "#F5F6FB"
+  if (meta) meta.content = resolved === "dark" ? "#0f131a" : "#F5F7FA"
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -98,16 +98,16 @@ export interface ChartPalette {
 
 const PALETTES: Record<ResolvedTheme, ChartPalette> = {
   light: {
-    series: ["#4f46e5", "#7c3aed", "#d97706", "#0891b2", "#dc2626"],
-    grid: "rgba(30, 27, 75, 0.08)",
-    tick: "#6b7194",
+    series: ["#2f6bff", "#d97706", "#475467", "#be185d", "#65a30d"],
+    grid: "rgba(16, 24, 40, 0.08)",
+    tick: "#667085",
     tooltipBg: "#ffffff",
   },
   dark: {
-    series: ["#818cf8", "#a78bfa", "#fbbf24", "#22d3ee", "#f87171"],
-    grid: "rgba(152, 162, 195, 0.12)",
-    tick: "#8f98ba",
-    tooltipBg: "#131b35",
+    series: ["#5b8cff", "#fbbf24", "#98a2b3", "#f472b6", "#a3e635"],
+    grid: "rgba(152, 162, 179, 0.12)",
+    tick: "#98a2b3",
+    tooltipBg: "#171c25",
   },
 }
 
@@ -120,7 +120,7 @@ export function useChartPalette(): ChartPalette {
 export const STATUS_COLORS: Record<ResolvedTheme, Record<string, string>> = {
   light: {
     PENDING: "#d97706",
-    APPROVED: "#4f46e5",
+    APPROVED: "#2f6bff",
     REJECTED: "#dc2626",
     CHECKED_IN: "#16a34a",
     CHECKED_OUT: "#64748b",
@@ -129,11 +129,11 @@ export const STATUS_COLORS: Record<ResolvedTheme, Record<string, string>> = {
   },
   dark: {
     PENDING: "#fbbf24",
-    APPROVED: "#818cf8",
+    APPROVED: "#5b8cff",
     REJECTED: "#f87171",
     CHECKED_IN: "#4ade80",
     CHECKED_OUT: "#94a3b8",
-    CANCELLED: "#c084fc",
+    CANCELLED: "#d8b4fe",
     ARCHIVED: "#64748b",
   },
 }

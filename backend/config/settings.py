@@ -21,7 +21,10 @@ from .env import env_bool, env_int, env_list, env_str
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env for local development (Render/Vercel inject real env vars).
-load_dotenv(BASE_DIR / ".env")
+# Tests that boot the settings in a fresh process set ADMITONE_IGNORE_DOTENV=1
+# so a developer's own .env (e.g. their Gmail details) cannot leak into them.
+if os.environ.get("ADMITONE_IGNORE_DOTENV") != "1":
+    load_dotenv(BASE_DIR / ".env")
 
 
 # ---------------------------------------------------------------------------
@@ -436,9 +439,13 @@ NON_DELIVERING_EMAIL_BACKENDS = frozenset({
     "django.core.mail.backends.dummy.EmailBackend",
 })
 
+# Development sends real mail as soon as SMTP credentials are filled in (for
+# example a Gmail address + App Password in backend/.env) and prints mail to
+# the console otherwise. Production always uses SMTP and is validated below.
+_SMTP_CREDENTIALS_SET = bool(os.environ.get("EMAIL_HOST_USER", "").strip() and os.environ.get("EMAIL_HOST_PASSWORD", "").strip())
 _EMAIL_DEFAULT_BACKEND = (
     "django.core.mail.backends.smtp.EmailBackend"
-    if ENVIRONMENT == "production"
+    if ENVIRONMENT == "production" or _SMTP_CREDENTIALS_SET
     else "django.core.mail.backends.console.EmailBackend"
 )
 
@@ -458,6 +465,16 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL or "webmaster@localhost"
 
 # Backends that must not be trusted to deliver in production, and the SMTP
 # settings that have to be coherent for one to work at all.
+# WhatsApp delivery of QR passes (visits/whatsapp.py). Off unless
+# WHATSAPP_PROVIDER=meta and the Cloud API credentials are set.
+WHATSAPP_PROVIDER = env_str("WHATSAPP_PROVIDER", "")
+WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = env_str("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_TEMPLATE_NAME = env_str("WHATSAPP_TEMPLATE_NAME", "visitor_pass_approved")
+WHATSAPP_TEMPLATE_LANGUAGE = env_str("WHATSAPP_TEMPLATE_LANGUAGE", "en")
+WHATSAPP_API_VERSION = env_str("WHATSAPP_API_VERSION", "v21.0")
+WHATSAPP_DEFAULT_COUNTRY_CODE = env_str("WHATSAPP_DEFAULT_COUNTRY_CODE", "91")
+
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
 _SMTP_LOCAL_HOSTS = _LOOPBACK_HOSTS | {"smtp", "mail", "sendmail", "postfix", "exim"}
 

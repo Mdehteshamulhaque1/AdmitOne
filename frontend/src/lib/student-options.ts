@@ -24,6 +24,34 @@ export const DEFAULT_VISITOR_CATEGORIES: Option[] = [
   { value: "OTHER", label: "Other" },
 ]
 
+/** Purpose label the backend always accepts; pairs with a free-text reason. */
+export const OTHER_PURPOSE = "Other"
+
+/**
+ * Fixed purpose list per category, mirroring the backend's training-centre
+ * catalogue (visits/purposes.py). Every list ends with "Other".
+ */
+export const DEFAULT_PURPOSES: Record<string, string[]> = {
+  STUDENT: [
+    "Course enquiry / demo class",
+    "Training session (daily attendance)",
+    "Lab practice",
+    "Mock interview",
+    "Company interview",
+    "Pool placement drive",
+    "Grooming / soft-skills class",
+    "Assessment / test",
+    "Fee payment / admission",
+    "Certificate collection",
+    "Casual visit",
+    OTHER_PURPOSE,
+  ],
+  PARENT: ["Counselling session", "Fee payment / admission", "Progress discussion", "Casual visit", OTHER_PURPOSE],
+  RECRUITER: ["Pool placement drive", "Interview panel", "Guest lecture / seminar", "Partnership meeting", OTHER_PURPOSE],
+  VENDOR: ["Delivery", "Maintenance / repair", "Installation", OTHER_PURPOSE],
+  OTHER: ["Business meeting", "Casual visit", OTHER_PURPOSE],
+}
+
 export const INDIAN_STATES: string[] = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
   "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
@@ -31,6 +59,50 @@ export const INDIAN_STATES: string[] = [
   "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
   "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
   "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+]
+
+export const COMPANIES: string[] = [
+  "TCS",
+  "Infosys",
+  "Wipro",
+  "HCL",
+  "Accenture",
+  "Deloitte",
+  "Local company",
+]
+
+export const RELATIONSHIPS: string[] = [
+  "Father",
+  "Mother",
+  "Guardian",
+  "Sibling",
+  "Spouse",
+  "Friend",
+]
+
+export const DESIGNATIONS: string[] = [
+  "HR Manager",
+  "Recruiter",
+  "Engineer",
+  "Manager",
+  "Vendor",
+  "Delivery Partner",
+]
+
+export const EMAIL_DOMAINS: string[] = [
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "icloud.com",
+  "company.com",
+]
+
+export const NOTE_PRESETS: string[] = [
+  "Accessibility support",
+  "Parking required",
+  "Carrying equipment",
+  "Escort needed",
+  "Large group",
 ]
 
 export const QUALIFICATIONS: string[] = [

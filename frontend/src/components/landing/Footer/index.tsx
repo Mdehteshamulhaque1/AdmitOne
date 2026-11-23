@@ -54,7 +54,7 @@ export function Footer() {
                     key={s.label}
                     href="#"
                     aria-label={s.label}
-                    className="flex size-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-muted-foreground transition-all hover:border-indigo-400/40 hover:text-indigo-300"
+                    className="flex size-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-muted-foreground transition-all hover:border-blue-400/40 hover:text-blue-300"
                   >
                     <Icon className="size-4" />
                   </a>
@@ -95,7 +95,7 @@ export function Footer() {
             <a href="#" className="transition-colors hover:text-foreground">Terms</a>
             <a href="#" className="transition-colors hover:text-foreground">Security</a>
             <span className="inline-flex items-center gap-1.5 text-muted-foreground/80">
-              <Lock className="size-3.5 text-indigo-400" /> Role-based access &amp; audit trails
+              <Lock className="size-3.5 text-blue-400" /> Role-based access &amp; audit trails
             </span>
           </div>
         </div>

@@ -35,7 +35,7 @@ export function OnboardingPage() {
   })
 
   if (loading) return <PageLoader />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated) return <Navigate to="/admin" replace />
   if (org) return <Navigate to="/dashboard" replace />
 
   const onCreate = async (values: CreateValues) => {
@@ -63,7 +63,7 @@ export function OnboardingPage() {
       <div className="mx-auto flex w-full max-w-xl flex-col justify-center px-6 py-12 sm:px-0">
         <div className="mb-10 flex items-center justify-between">
           <LogoWordmark />
-          <Button variant="ghost" size="sm" onClick={() => { logout(); navigate("/login", { replace: true }) }}>
+          <Button variant="ghost" size="sm" onClick={() => { logout(); navigate("/admin", { replace: true }) }}>
             Sign out
           </Button>
         </div>

@@ -71,6 +71,8 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_KEY)
 }
 
+export const SERVER_UNREACHABLE = "The AdmitOne server isn't responding right now. Check that the backend is running, then try again."
+
 export class ApiError extends Error {
   status: number
   data: unknown
@@ -108,7 +110,8 @@ async function refreshAccessToken(): Promise<boolean> {
 export async function api<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const token = getAccessToken()
   const headers = new Headers(options.headers)
-  if (options.body && !headers.has("Content-Type")) {
+  // FormData (file uploads) sets its own multipart boundary.
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
   }
   if (token) headers.set("Authorization", `Bearer ${token}`)
@@ -116,8 +119,9 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
   let res: Response
   try {
     res = await fetchWithTimeout(buildUrl(path), { ...options, headers })
-  } catch {
-    throw new ApiError(408, { detail: "Request timed out" })
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw new ApiError(408, { detail: "The request timed out. Check your connection and try again." })
+    throw new ApiError(0, { detail: SERVER_UNREACHABLE })
   }
 
   if (res.status === 401 && retry && getRefreshToken()) {
@@ -131,7 +135,9 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
     try {
       body = JSON.parse(raw)
     } catch {
-      body = raw
+      // A 5xx with no JSON body means the API itself didn't answer (stopped,
+      // restarting, or the dev proxy can't reach it): say so instead of nothing.
+      body = res.status >= 500 ? { detail: SERVER_UNREACHABLE } : raw || { detail: `Request failed (${res.status}).` }
     }
     throw new ApiError(res.status, body)
   }

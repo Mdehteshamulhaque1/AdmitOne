@@ -66,7 +66,7 @@ function ChartTooltip({ active, payload, label }: any) {
     <div className="rounded-xl border border-white/10 bg-[#0d1624]/95 px-3.5 py-2.5 text-xs shadow-lift backdrop-blur-md">
       <div className="text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-center gap-1.5 font-semibold text-foreground">
-        <span className="size-1.5 rounded-full bg-indigo-400" />
+        <span className="size-1.5 rounded-full bg-blue-400" />
         {payload[0].value} visitors
       </div>
     </div>
@@ -105,7 +105,7 @@ export function DashboardPreview() {
     <Section id="dashboard-preview" className="relative py-24 lg:py-36">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/3 -z-10 size-[42rem] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[160px]"
+        className="pointer-events-none absolute left-1/2 top-1/3 -z-10 size-[42rem] -translate-x-1/2 rounded-full bg-blue-500/10 blur-[160px]"
       />
       <Container>
         <SectionHeading
@@ -131,12 +131,12 @@ export function DashboardPreview() {
                 <span className="size-3 rounded-full bg-[#28c840]" />
               </div>
               <div className="mx-auto flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3.5 py-1.5 text-xs text-muted-foreground">
-                <Lock className="size-3 text-indigo-400" /> app.admitone.io/dashboard
+                <Lock className="size-3 text-blue-400" /> app.admitone.io/dashboard
               </div>
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-indigo-400">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-400">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-indigo-400 opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-indigo-400" />
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-blue-400" />
                 </span>
                 Live
               </span>
@@ -177,7 +177,7 @@ export function DashboardPreview() {
                       >
                         <Icon className="size-3.5" /> {item.label}
                         {item.badge && (
-                          <span className="ml-auto rounded-full bg-indigo-500/20 px-1.5 text-[10px] font-bold text-indigo-300">
+                          <span className="ml-auto rounded-full bg-blue-500/20 px-1.5 text-[10px] font-bold text-blue-300">
                             {item.badge}
                           </span>
                         )}
@@ -201,9 +201,9 @@ export function DashboardPreview() {
                     </div>
                     <div className="relative flex size-8 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.03]">
                       <Bell className="size-3.5 text-muted-foreground" />
-                      <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-indigo-400" />
+                      <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-blue-400" />
                     </div>
-                    <span className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-indigo-500 to-blue-600">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-slate-600">
                       <Users className="size-4 text-white" />
                     </span>
                   </div>
@@ -215,13 +215,13 @@ export function DashboardPreview() {
                     {
                       label: "On site now",
                       value: <AnimatedNumber value={24} className="tabular-nums" />,
-                      accent: "text-indigo-300",
+                      accent: "text-blue-300",
                       chip: "Live",
                     },
                     {
                       label: "Visits today",
                       value: <AnimatedNumber value={91} className="tabular-nums" />,
-                      accent: "text-blue-300",
+                      accent: "text-slate-300",
                     },
                     {
                       label: "Pending approvals",
@@ -231,7 +231,7 @@ export function DashboardPreview() {
                     {
                       label: "QR scans",
                       value: <AnimatedNumber value={187} className="tabular-nums" />,
-                      accent: "text-violet-300",
+                      accent: "text-cyan-300",
                     },
                   ].map((kpi) => (
                     <div
@@ -241,8 +241,8 @@ export function DashboardPreview() {
                       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         {kpi.label}
                         {kpi.chip && (
-                          <span className="flex items-center gap-1 text-indigo-400">
-                            <span className="size-1.5 rounded-full bg-indigo-400" /> {kpi.chip}
+                          <span className="flex items-center gap-1 text-blue-400">
+                            <span className="size-1.5 rounded-full bg-blue-400" /> {kpi.chip}
                           </span>
                         )}
                       </div>
@@ -261,7 +261,7 @@ export function DashboardPreview() {
                         <div className="text-xs font-semibold">Visit flow</div>
                         <div className="text-[11px] text-muted-foreground">Last 14 days</div>
                       </div>
-                      <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                      <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
                         Sample data
                       </span>
                     </div>
@@ -270,12 +270,12 @@ export function DashboardPreview() {
                         <AreaChart data={CHART_DATA} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
                           <defs>
                             <linearGradient id="sgArea" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#6366f1" stopOpacity={0.42} />
-                              <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                              <stop offset="0%" stopColor="#2f6bff" stopOpacity={0.42} />
+                              <stop offset="100%" stopColor="#2f6bff" stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="sgLine" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor="#818cf8" />
-                              <stop offset="100%" stopColor="#c4b5fd" />
+                              <stop offset="0%" stopColor="#5b8cff" />
+                              <stop offset="100%" stopColor="#c3cad6" />
                             </linearGradient>
                           </defs>
                           <CartesianGrid stroke="rgba(148,163,184,0.08)" vertical={false} />
@@ -291,7 +291,7 @@ export function DashboardPreview() {
                             tickLine={false}
                             tick={{ fill: "#64748b", fontSize: 10 }}
                           />
-                          <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(129,140,248,0.3)" }} />
+                          <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(91,140,255,0.3)" }} />
                           <Area
                             type="monotone"
                             dataKey="visits"
@@ -309,7 +309,7 @@ export function DashboardPreview() {
                   <div className="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-xs font-semibold">Recent scans</div>
-                      <QrCode className="size-3.5 text-indigo-400" />
+                      <QrCode className="size-3.5 text-blue-400" />
                     </div>
                     <ul className="mt-3 flex-1 space-y-2.5">
                       {scanFeed.map((scan) => (
@@ -321,8 +321,8 @@ export function DashboardPreview() {
                           className="flex items-center gap-2.5 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2"
                         >
                           <span className="relative flex size-1.5">
-                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-indigo-400 opacity-70" />
-                            <span className="relative inline-flex size-1.5 rounded-full bg-indigo-400" />
+                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-400 opacity-70" />
+                            <span className="relative inline-flex size-1.5 rounded-full bg-blue-400" />
                           </span>
                           <span className="flex-1 truncate text-[11px] text-foreground/85">
                             {scan.text}
@@ -356,7 +356,7 @@ export function DashboardPreview() {
                           <span className="block text-[10px] text-muted-foreground">{a.time}</span>
                         </span>
                         {a.status === "Approved" ? (
-                          <CheckCircle2 className="size-3.5 shrink-0 text-indigo-400" />
+                          <CheckCircle2 className="size-3.5 shrink-0 text-blue-400" />
                         ) : (
                           <Clock3 className="size-3.5 shrink-0 text-amber-400" />
                         )}

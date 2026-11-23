@@ -32,6 +32,8 @@ from accounts.utils import client_ip, org_localdate
 from organizations.models import AuditLog, Building, Department, Employee, Organization
 from visits.availability import (
     get_host_availability,
+    get_host_availability_calendar,
+    MAX_CALENDAR_DAYS,
     organization_slot_duration,
     resolve_booking_host,
 )
@@ -362,6 +364,14 @@ class VisitViewSet(viewsets.ReadOnlyModelViewSet):
         token = ser.validated_data["token"]
         signature = ser.validated_data["signature"]
         dry_run = ser.validated_data.get("dry_run", False)
+
+        # 6-month student passes ("SP|token|signature") share the gate scanner.
+        from visits.student_passes import is_student_payload
+
+        if is_student_payload(token):
+            from .student_pass_views import scan_student_pass_response
+
+            return scan_student_pass_response(request, signature, dry_run)
 
         ok, msg, qr = QRPass.verify(token, signature)
         visit = None
@@ -1029,6 +1039,33 @@ class PublicBookingView(APIView):
         )
 
 
+class PublicNoticesView(APIView):
+    """Notices admins publish for visitors (Public Notice page). Read-only and
+    public: they are written to be seen by anyone before applying for a pass.
+    Expired notices (``until`` in the past) are left out."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [PublicBookingRateThrottle]
+
+    def get(self, request):
+        items = []
+        for org in Organization.objects.order_by("name"):
+            today = org_localdate(org).isoformat()
+            for n in (org.visitor_policies or {}).get("public_notices") or []:
+                if not isinstance(n, dict) or (n.get("until") and n["until"] < today):
+                    continue
+                items.append({
+                    "organization": org.name,
+                    "organization_slug": org.slug,
+                    "title": n.get("title", ""),
+                    "body": n.get("body", ""),
+                    "published_on": n.get("published_on", ""),
+                    "until": n.get("until", ""),
+                })
+        items.sort(key=lambda n: n["published_on"], reverse=True)
+        return Response({"notices": items})
+
+
 class PublicBookingHostsView(APIView):
     """Active hosts for the public booking flow.
 
@@ -1140,5 +1177,53 @@ class PublicBookingAvailabilityView(APIView):
                 "host": {"id": host.pk, "name": host.full_name},
                 "slot_duration_minutes": organization_slot_duration(org),
                 "slots": slots,
+            }
+        )
+
+
+class PublicBookingCalendarView(APIView):
+    """Free-slot count per day for one host over a date range (public flow).
+
+    ``?host=<id>&start=YYYY-MM-DD&days=N`` (N <= 90, default 90). Lets the
+    booking form grey out full or closed days with ONE request instead of
+    one availability call per day (which also exhausted the per-IP limit).
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [PublicBookingRateThrottle]
+
+    def get(self, request, slug):
+        org = Organization.objects.filter(slug=slug).first()
+        if org is None:
+            raise NotFound("Organization not found. Check the booking link you were given.")
+        params = request.query_params
+        try:
+            host_id = int((params.get("host") or "").strip())
+        except ValueError:
+            return Response({"detail": "host must be a valid host id."}, status=status.HTTP_400_BAD_REQUEST)
+        today = org_localdate(org)
+        raw_start = (params.get("start") or "").strip()
+        try:
+            start = date.fromisoformat(raw_start) if raw_start else today
+        except ValueError:
+            return Response({"detail": "Invalid start date. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+        start = max(start, today)
+        try:
+            days = int(params.get("days") or MAX_CALENDAR_DAYS)
+        except ValueError:
+            return Response({"detail": "days must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+        if not 1 <= days <= MAX_CALENDAR_DAYS:
+            return Response(
+                {"detail": f"days must be between 1 and {MAX_CALENDAR_DAYS}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        host = resolve_booking_host(org, host_id)
+        if host is None:
+            return Response({"detail": "This host is not available for booking."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "start": start.isoformat(),
+                "days": get_host_availability_calendar(org, host, start, days),
+                "slot_duration_minutes": organization_slot_duration(org),
             }
         )

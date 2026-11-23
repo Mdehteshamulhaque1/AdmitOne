@@ -123,6 +123,14 @@ def approve_visit(visit, approver):
         QRPass.issue(locked)
         log_visit_event(approver, "Visit approved", locked)
     emailed = send_qr_pass_email(locked)
+    # WhatsApp is an extra channel: it never blocks or fails an approval.
+    from .whatsapp import send_qr_pass_whatsapp
+
+    whatsapp = send_qr_pass_whatsapp(locked)
+    if whatsapp == "sent":
+        if emailed.sent:
+            return True, "Visit approved. QR pass generated, emailed and sent on WhatsApp."
+        return True, "Visit approved. QR pass generated and sent to the visitor on WhatsApp."
     if emailed.sent:
         return True, "Visit approved. QR pass generated and emailed to the visitor."
     if emailed.skipped:

@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Input } from "@/components/ui/Input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Skeleton } from "@/components/ui/Skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/Table"
+import { Chip } from "@/components/widgets/Choice"
 import { PageHeader } from "@/components/widgets/PageHeader"
 import { Pagination } from "@/components/widgets/Pagination"
 import { QueryErrorState } from "@/components/widgets/QueryErrorState"
@@ -123,18 +123,15 @@ export function VisitsPage() {
       </div>
 
       {showFilters && (
-        <div className="card-surface grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Status</label>
-            <Select value={status || "all"} onValueChange={(v) => update({ status: v === "all" ? undefined : v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Any status</SelectItem>
-                {VISIT_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{VISIT_STATUS_LABELS[s]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="card-surface grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-4">
+            <div className="text-xs font-medium text-muted-foreground">Status</div>
+            <div role="radiogroup" aria-label="Status" className="flex flex-wrap gap-2">
+              <Chip role="radio" selected={!status} onClick={() => update({ status: undefined })}>Any status</Chip>
+              {VISIT_STATUSES.map((s) => (
+                <Chip key={s} role="radio" selected={status === s} onClick={() => update({ status: s })}>{VISIT_STATUS_LABELS[s]}</Chip>
+              ))}
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">On date</label>
@@ -164,7 +161,7 @@ export function VisitsPage() {
             <EmptyState
               icon={<CalendarRange className="size-6" />}
               title={hasFilters ? "No visits match these filters" : "No visits yet"}
-              description={hasFilters ? "Try widening the date range or clearing the search." : "Register a visitor to create the first visit."}
+              description={hasFilters ? "Try widening the date range or clearing the search." : "Register a visit to create the first visit."}
               action={hasFilters ? <Button size="sm" variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Clear filters</Button> : undefined}
             />
           </div>

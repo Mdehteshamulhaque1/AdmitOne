@@ -1,39 +1,40 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------------
-   Design tokens — indigo / violet.  Every colour the app uses is a CSS
-   variable with a light and a dark value; Tailwind utilities reference the
-   variables through `@theme inline`, so switching `data-theme` on <html>
+   Design tokens: graphite + electric blue.  Every colour the app uses is a
+   CSS variable with a light and a dark value; Tailwind utilities reference
+   the variables through `@theme inline`, so switching `data-theme` on <html>
    re-skins the app without a re-render.  The marketing landing page opts
-   into the dark set permanently via `.theme-dark`.
+   into the dark set permanently via `.theme-dark`.  The staff navigation
+   panel and the visitor pass (`--sg-nav-*`) are graphite in both modes.
    ------------------------------------------------------------------------ */
 
 :root {
   color-scheme: light;
 
-  --sg-bg: #f5f6fb;
+  --sg-bg: #f5f7fa;
   --sg-bg-elevated: #ffffff;
-  --sg-fg: #0f1222;
+  --sg-fg: #111827;
   --sg-card: #ffffff;
-  --sg-card-soft: #f8f8fd;
+  --sg-card-soft: #f9fafb;
   --sg-popover: #ffffff;
-  --sg-secondary: #eef0f8;
-  --sg-secondary-fg: #363b55;
-  --sg-muted: #e3e6f2;
-  --sg-muted-fg: #5e6482;
-  --sg-border: rgba(30, 27, 75, 0.09);
-  --sg-border-strong: rgba(30, 27, 75, 0.18);
-  --sg-input: rgba(30, 27, 75, 0.15);
-  --sg-hover: rgba(79, 70, 229, 0.05);
-  --sg-surface-2: rgba(30, 27, 75, 0.035);
-  --sg-ring: rgba(99, 102, 241, 0.45);
+  --sg-secondary: #eef1f5;
+  --sg-secondary-fg: #344054;
+  --sg-muted: #e4e7ec;
+  --sg-muted-fg: #5b6475;
+  --sg-border: rgba(16, 24, 40, 0.1);
+  --sg-border-strong: rgba(16, 24, 40, 0.2);
+  --sg-input: rgba(16, 24, 40, 0.16);
+  --sg-hover: rgba(47, 107, 255, 0.06);
+  --sg-surface-2: rgba(16, 24, 40, 0.035);
+  --sg-ring: rgba(47, 107, 255, 0.45);
 
-  --sg-primary: #4f46e5;
-  --sg-primary-strong: #4338ca;
+  --sg-primary: #2f6bff;
+  --sg-primary-strong: #1f55e0;
   --sg-primary-fg: #ffffff;
-  --sg-primary-soft: rgba(99, 102, 241, 0.12);
-  --sg-accent: #7c3aed;
-  --sg-accent-soft: rgba(139, 92, 246, 0.12);
+  --sg-primary-soft: rgba(47, 107, 255, 0.1);
+  --sg-accent: #475467;
+  --sg-accent-soft: rgba(71, 84, 103, 0.1);
 
   --sg-success: #15803d;
   --sg-success-soft: rgba(34, 197, 94, 0.13);
@@ -41,56 +42,64 @@
   --sg-warning-soft: rgba(245, 158, 11, 0.16);
   --sg-danger: #b91c1c;
   --sg-danger-soft: rgba(239, 68, 68, 0.12);
-  --sg-info: #0e7490;
-  --sg-info-soft: rgba(6, 182, 212, 0.12);
+  --sg-info: #1f55e0;
+  --sg-info-soft: rgba(47, 107, 255, 0.1);
   --sg-violet: #6d28d9;
-  --sg-violet-soft: rgba(139, 92, 246, 0.14);
+  --sg-violet-soft: rgba(139, 92, 246, 0.12);
 
-  --sg-chart-1: #4f46e5;
-  --sg-chart-2: #7c3aed;
-  --sg-chart-3: #d97706;
-  --sg-chart-4: #0891b2;
-  --sg-chart-5: #dc2626;
-  --sg-chart-grid: rgba(30, 27, 75, 0.08);
-  --sg-chart-tick: #6b7194;
+  --sg-chart-1: #2f6bff;
+  --sg-chart-2: #d97706;
+  --sg-chart-3: #475467;
+  --sg-chart-4: #be185d;
+  --sg-chart-5: #65a30d;
+  --sg-chart-grid: rgba(16, 24, 40, 0.08);
+  --sg-chart-tick: #667085;
 
-  --sg-shadow-card: 0 1px 2px rgba(30, 27, 75, 0.04), 0 8px 24px -12px rgba(30, 27, 75, 0.14);
-  --sg-shadow-lift: 0 0 0 1px rgba(30, 27, 75, 0.06), 0 20px 40px -16px rgba(30, 27, 75, 0.24);
-  --sg-shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 8px 24px -8px rgba(99, 102, 241, 0.4);
-  --sg-table-head: #f8f8fd;
-  --sg-aurora-1: rgba(99, 102, 241, 0.12);
-  --sg-aurora-2: rgba(139, 92, 246, 0.09);
-  --sg-aurora-3: rgba(56, 189, 248, 0.07);
-  --sg-grid-line: rgba(30, 27, 75, 0.04);
+  --sg-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --sg-shadow-lift: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 16px 32px -12px rgba(16, 24, 40, 0.2);
+  --sg-shadow-glow: 0 0 0 1px rgba(47, 107, 255, 0.25), 0 8px 24px -10px rgba(47, 107, 255, 0.4);
+  --sg-table-head: #f9fafb;
+  --sg-aurora-1: rgba(47, 107, 255, 0);
+  --sg-aurora-2: rgba(71, 84, 103, 0);
+  --sg-aurora-3: rgba(143, 176, 255, 0);
+  --sg-grid-line: rgba(16, 24, 40, 0);
+
+  --sg-nav-bg: #1d2330;
+  --sg-nav-fg: #eef1f6;
+  --sg-nav-muted: #9aa3b5;
+  --sg-nav-border: rgba(255, 255, 255, 0.08);
+  --sg-nav-hover: rgba(255, 255, 255, 0.06);
+  --sg-nav-active: rgba(91, 140, 255, 0.16);
+  --sg-nav-accent: #5b8cff;
 }
 
 :root[data-theme="dark"],
 .theme-dark {
   color-scheme: dark;
 
-  --sg-bg: #0a0e1f;
-  --sg-bg-elevated: #10152b;
-  --sg-fg: #eef0fa;
-  --sg-card: #121a33;
-  --sg-card-soft: #182142;
-  --sg-popover: #131b35;
-  --sg-secondary: #121a33;
-  --sg-secondary-fg: #c7cce3;
-  --sg-muted: #1f2a4a;
-  --sg-muted-fg: #98a2c3;
-  --sg-border: rgba(255, 255, 255, 0.08);
-  --sg-border-strong: rgba(255, 255, 255, 0.18);
-  --sg-input: rgba(255, 255, 255, 0.12);
-  --sg-hover: rgba(255, 255, 255, 0.05);
-  --sg-surface-2: rgba(255, 255, 255, 0.04);
-  --sg-ring: rgba(129, 140, 248, 0.5);
+  --sg-bg: #0f131a;
+  --sg-bg-elevated: #131821;
+  --sg-fg: #eceff4;
+  --sg-card: #171c25;
+  --sg-card-soft: #1c2230;
+  --sg-popover: #1a202b;
+  --sg-secondary: #171c25;
+  --sg-secondary-fg: #c9ced8;
+  --sg-muted: #252c3a;
+  --sg-muted-fg: #98a2b3;
+  --sg-border: rgba(226, 232, 240, 0.09);
+  --sg-border-strong: rgba(226, 232, 240, 0.18);
+  --sg-input: rgba(226, 232, 240, 0.13);
+  --sg-hover: rgba(226, 232, 240, 0.05);
+  --sg-surface-2: rgba(226, 232, 240, 0.04);
+  --sg-ring: rgba(91, 140, 255, 0.5);
 
-  --sg-primary: #818cf8;
-  --sg-primary-strong: #a5b4fc;
-  --sg-primary-fg: #0b0f1f;
-  --sg-primary-soft: rgba(129, 140, 248, 0.14);
-  --sg-accent: #a78bfa;
-  --sg-accent-soft: rgba(167, 139, 250, 0.14);
+  --sg-primary: #5b8cff;
+  --sg-primary-strong: #8fb0ff;
+  --sg-primary-fg: #0b1020;
+  --sg-primary-soft: rgba(91, 140, 255, 0.14);
+  --sg-accent: #98a2b3;
+  --sg-accent-soft: rgba(152, 162, 179, 0.14);
 
   --sg-success: #4ade80;
   --sg-success-soft: rgba(34, 197, 94, 0.12);
@@ -98,34 +107,42 @@
   --sg-warning-soft: rgba(245, 158, 11, 0.12);
   --sg-danger: #f87171;
   --sg-danger-soft: rgba(239, 68, 68, 0.12);
-  --sg-info: #22d3ee;
-  --sg-info-soft: rgba(34, 211, 238, 0.12);
+  --sg-info: #8fb0ff;
+  --sg-info-soft: rgba(91, 140, 255, 0.12);
   --sg-violet: #c4b5fd;
   --sg-violet-soft: rgba(167, 139, 250, 0.14);
 
-  --sg-chart-1: #818cf8;
-  --sg-chart-2: #a78bfa;
-  --sg-chart-3: #fbbf24;
-  --sg-chart-4: #22d3ee;
-  --sg-chart-5: #f87171;
-  --sg-chart-grid: rgba(152, 162, 195, 0.12);
-  --sg-chart-tick: #8f98ba;
+  --sg-chart-1: #5b8cff;
+  --sg-chart-2: #fbbf24;
+  --sg-chart-3: #98a2b3;
+  --sg-chart-4: #f472b6;
+  --sg-chart-5: #a3e635;
+  --sg-chart-grid: rgba(152, 162, 179, 0.12);
+  --sg-chart-tick: #98a2b3;
 
-  --sg-shadow-card: 0 1px 2px rgba(3, 5, 18, 0.4), 0 12px 32px -12px rgba(3, 5, 18, 0.6);
-  --sg-shadow-lift: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 24px 48px -16px rgba(3, 5, 18, 0.8);
-  --sg-shadow-glow: 0 0 0 1px rgba(129, 140, 248, 0.28), 0 10px 40px -8px rgba(129, 140, 248, 0.4);
-  --sg-table-head: #0f1529;
-  --sg-aurora-1: rgba(99, 102, 241, 0.16);
-  --sg-aurora-2: rgba(139, 92, 246, 0.12);
-  --sg-aurora-3: rgba(56, 189, 248, 0.09);
-  --sg-grid-line: rgba(152, 162, 195, 0.045);
+  --sg-shadow-card: 0 1px 2px rgba(5, 8, 14, 0.4), 0 8px 24px -12px rgba(5, 8, 14, 0.6);
+  --sg-shadow-lift: 0 0 0 1px rgba(226, 232, 240, 0.07), 0 24px 48px -16px rgba(5, 8, 14, 0.8);
+  --sg-shadow-glow: 0 0 0 1px rgba(91, 140, 255, 0.28), 0 10px 36px -10px rgba(91, 140, 255, 0.35);
+  --sg-table-head: #151a23;
+  --sg-aurora-1: rgba(91, 140, 255, 0.05);
+  --sg-aurora-2: rgba(152, 162, 179, 0.03);
+  --sg-aurora-3: rgba(143, 176, 255, 0.03);
+  --sg-grid-line: rgba(152, 162, 179, 0);
+
+  --sg-nav-bg: #12161e;
+  --sg-nav-fg: #eceff4;
+  --sg-nav-muted: #8b94a7;
+  --sg-nav-border: rgba(255, 255, 255, 0.07);
+  --sg-nav-hover: rgba(255, 255, 255, 0.05);
+  --sg-nav-active: rgba(91, 140, 255, 0.16);
+  --sg-nav-accent: #5b8cff;
 }
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", "DM Serif Display", Georgia, "Times New Roman", serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
 
   --color-background: var(--sg-bg);
   --color-elevated: var(--sg-bg-elevated);
@@ -166,8 +183,15 @@
   --color-info-soft: var(--sg-info-soft);
   --color-violet: var(--sg-violet);
   --color-violet-soft: var(--sg-violet-soft);
-  --color-brand-blue: #7c3aed;
-  --color-brand-cyan: #a78bfa;
+  --color-nav: var(--sg-nav-bg);
+  --color-nav-foreground: var(--sg-nav-fg);
+  --color-nav-muted: var(--sg-nav-muted);
+  --color-nav-border: var(--sg-nav-border);
+  --color-nav-hover: var(--sg-nav-hover);
+  --color-nav-active: var(--sg-nav-active);
+  --color-nav-accent: var(--sg-nav-accent);
+  --color-brand-blue: #475467;
+  --color-brand-cyan: #8fb0ff;
 
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
@@ -178,8 +202,8 @@
   --shadow-card: var(--sg-shadow-card);
   --shadow-lift: var(--sg-shadow-lift);
   --shadow-glow: var(--sg-shadow-glow);
-  --shadow-glow-blue: 0 0 0 1px rgba(124, 58, 237, 0.28), 0 10px 40px -8px rgba(124, 58, 237, 0.45);
-  --shadow-hero: 0 40px 90px -30px rgba(3, 5, 18, 0.9);
+  --shadow-glow-blue: 0 0 0 1px rgba(71, 84, 103, 0.28), 0 10px 40px -8px rgba(71, 84, 103, 0.45);
+  --shadow-hero: 0 40px 90px -30px rgba(5, 8, 14, 0.9);
 
   --animate-fade-in: fade-in 0.4s ease both;
   --animate-shimmer: shimmer 1.8s linear infinite;
@@ -235,11 +259,14 @@
   html { scroll-behavior: smooth; }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     transition: background-color 0.25s ease, color 0.25s ease;
   }
-  h1, h2, h3, h4, h5, h6 { @apply font-display; letter-spacing: -0.015em; }
+  h1, h2, h3, h4, h5, h6 { @apply font-display; letter-spacing: -0.02em; font-weight: 650; }
+  .tabular-nums, time, kbd, code { font-variant-numeric: tabular-nums; }
   ::selection { background: var(--sg-primary-soft); }
+  /* Edge/IE draw their own reveal/clear buttons; the app's own toggle is enough. */
+  input::-ms-reveal,
+  input::-ms-clear { display: none; }
   :focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -292,22 +319,22 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     -webkit-backdrop-filter: blur(18px);
     backdrop-filter: blur(18px);
-    box-shadow: 0 20px 50px -24px rgba(3, 5, 18, 0.7);
+    box-shadow: 0 20px 50px -24px rgba(5, 8, 14, 0.7);
     transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.3s ease;
   }
   .glass-card:hover {
     transform: translateY(-4px);
     border-color: rgba(255, 255, 255, 0.16);
-    box-shadow: 0 30px 70px -28px rgba(3, 5, 18, 0.85);
+    box-shadow: 0 30px 70px -28px rgba(5, 8, 14, 0.85);
   }
   .text-gradient {
-    background: linear-gradient(94deg, var(--sg-primary) 0%, var(--sg-accent) 55%, #c084fc 100%);
+    background: linear-gradient(94deg, var(--sg-primary) 0%, var(--sg-accent) 55%, #b4bccb 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .text-gradient-teal {
-    background: linear-gradient(94deg, #a5b4fc, #818cf8 45%, #c084fc);
+    background: linear-gradient(94deg, #8fb0ff, #5b8cff 45%, #b4bccb);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -319,7 +346,7 @@
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.35), rgba(192, 132, 252, 0.35));
+    background: linear-gradient(135deg, rgba(47, 107, 255, 0.6), rgba(71, 84, 103, 0.35), rgba(180, 188, 203, 0.35));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -336,7 +363,7 @@
     z-index: -1;
     border-radius: inherit;
     padding: 1px;
-    background: conic-gradient(from 180deg at 50% 50%, rgba(99, 102, 241, 0), rgba(99, 102, 241, 0.7), rgba(139, 92, 246, 0.7), rgba(99, 102, 241, 0));
+    background: conic-gradient(from 180deg at 50% 50%, rgba(47, 107, 255, 0), rgba(47, 107, 255, 0.7), rgba(71, 84, 103, 0.7), rgba(47, 107, 255, 0));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -376,10 +403,10 @@
     inset: 0;
     overflow: hidden;
     background:
-      radial-gradient(1200px 700px at 15% -10%, rgba(99, 102, 241, 0.18), transparent 55%),
-      radial-gradient(1000px 620px at 90% 10%, rgba(139, 92, 246, 0.16), transparent 55%),
-      radial-gradient(900px 700px at 50% 120%, rgba(56, 189, 248, 0.1), transparent 60%),
-      #0a0e1f;
+      radial-gradient(1200px 700px at 15% -10%, rgba(47, 107, 255, 0.18), transparent 55%),
+      radial-gradient(1000px 620px at 90% 10%, rgba(71, 84, 103, 0.16), transparent 55%),
+      radial-gradient(900px 700px at 50% 120%, rgba(143, 176, 255, 0.1), transparent 60%),
+      #0f131a;
   }
   .sg-landing-grid {
     position: absolute;

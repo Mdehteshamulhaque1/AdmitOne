@@ -13,6 +13,7 @@ import {
   KeyRound,
   Layers,
   Link2,
+  Megaphone,
   Plus,
   Save,
   Trash2,
@@ -46,16 +47,18 @@ import {
 } from "@/lib/queries"
 import { ROLE_LABELS, formatApiError, type Building, type Department, type WeeklyWorkingHours } from "@/lib/types"
 import { CatalogueEditor } from "@/components/settings/CatalogueEditor"
+import { NoticesEditor } from "@/components/settings/NoticesEditor"
 import { RoomsTab } from "@/components/settings/RoomsTab"
 import { WeeklyHoursEditor } from "@/components/settings/WeeklyHoursEditor"
 
-type Tab = "workspace" | "buildings" | "rooms" | "departments" | "visitors" | "account"
+type Tab = "workspace" | "buildings" | "rooms" | "departments" | "visitors" | "notices" | "account"
 const TABS: { value: Tab; label: string; icon: typeof Building2; adminOnly?: boolean }[] = [
   { value: "workspace", label: "Workspace", icon: Building2 },
   { value: "buildings", label: "Buildings", icon: Layers },
   { value: "rooms", label: "Rooms", icon: DoorOpen },
   { value: "departments", label: "Departments", icon: Layers },
   { value: "visitors", label: "Visitor options", icon: ListChecks },
+  { value: "notices", label: "Public notices", icon: Megaphone },
   { value: "account", label: "My account", icon: UserRound },
 ]
 
@@ -541,6 +544,7 @@ export function SettingsPage() {
         {active === "rooms" && <RoomsTab />}
         {active === "departments" && <DepartmentsTab />}
         {active === "visitors" && <CatalogueEditor />}
+        {active === "notices" && <NoticesEditor />}
         {active === "account" && <AccountTab />}
       </div>
     </div>

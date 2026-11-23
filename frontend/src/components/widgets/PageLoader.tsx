@@ -7,9 +7,9 @@ export function PageLoader() {
         <Logo className="size-10" />
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="size-2 animate-bounce rounded-full bg-indigo-400 [animation-delay:-0.3s]" />
-        <span className="size-2 animate-bounce rounded-full bg-violet-400 [animation-delay:-0.15s]" />
-        <span className="size-2 animate-bounce rounded-full bg-blue-400" />
+        <span className="size-2 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
+        <span className="size-2 animate-bounce rounded-full bg-cyan-400 [animation-delay:-0.15s]" />
+        <span className="size-2 animate-bounce rounded-full bg-slate-400" />
       </div>
     </div>
   )

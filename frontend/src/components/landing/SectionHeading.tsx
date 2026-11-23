@@ -24,8 +24,8 @@ export function SectionHeading({
         className,
       )}
     >
-      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300 backdrop-blur-sm">
-        <span className="size-1.5 rounded-full bg-indigo-400 shadow-glow" />
+      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-300 backdrop-blur-sm">
+        <span className="size-1.5 rounded-full bg-blue-400 shadow-glow" />
         {eyebrow}
       </span>
       <h2 className="mt-5 font-serif text-4xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-[3.4rem]">

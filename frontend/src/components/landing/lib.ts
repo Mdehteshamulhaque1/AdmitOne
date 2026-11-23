@@ -22,19 +22,19 @@ export const FEATURES = [
     title: "Organization-based data isolation",
     description:
       "Every visitor, visit, pass and audit row belongs to one workspace. Queries are scoped by tenant, never by a join that could leak.",
-    accent: "#818cf8",
+    accent: "#5b8cff",
   },
   {
     title: "Three roles: ADMIN, RECEPTIONIST and SECURITY",
     description:
       "Admins manage the workspace and approvals, reception registers visitors, security runs the gate. Nothing more, nothing less.",
-    accent: "#7c3aed",
+    accent: "#475467",
   },
   {
     title: "Role-based permission checks",
     description:
       "Each API endpoint re-derives the caller's capabilities from their role. The interface only hides what the server already refuses.",
-    accent: "#8b5cf6",
+    accent: "#667085",
   },
   {
     title: "Login failure tracking and account lockout",
@@ -52,7 +52,7 @@ export const FEATURES = [
     title: "HMAC-SHA256 signed QR passes",
     description:
       "Each pass is signed over the visit, the workspace and an opaque token with a dedicated key. A forged or edited code fails verification.",
-    accent: "#a78bfa",
+    accent: "#98a2b3",
   },
   {
     title: "Single-use QR verification",

@@ -77,12 +77,12 @@ class EmailProvider:
 
 
 class WhatsAppProvider:
-    """WhatsApp channel abstraction.
+    """WhatsApp as a channel for *host* notifications (free-form text).
 
-    AdmitOne ships WITHOUT a WhatsApp backend, so this provider is never
-    "configured" — code that calls it must treat that as an explicit, safe
-    "WhatsApp provider not configured" outcome instead of pretending a
-    message was sent.
+    Not supported: WhatsApp only allows businesses to start conversations with
+    pre-approved templates. Visitors' QR passes ARE sent on WhatsApp, through
+    the template flow in visits/whatsapp.py. This provider therefore stays
+    "not configured" so nothing claims a message went out when it did not.
     """
 
     name = "whatsapp"

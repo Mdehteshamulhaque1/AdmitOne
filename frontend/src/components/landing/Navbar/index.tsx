@@ -37,7 +37,7 @@ export function Navbar() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         scrolled
-          ? "border-b border-white/[0.07] bg-[#0a0e1f]/75 shadow-[0_12px_40px_-20px_rgba(3,7,18,0.8)] backdrop-blur-xl"
+          ? "border-b border-white/[0.07] bg-[#0f131a]/75 shadow-[0_12px_40px_-20px_rgba(3,7,18,0.8)] backdrop-blur-xl"
           : "border-b border-transparent bg-transparent",
       )}
     >
@@ -54,7 +54,7 @@ export function Navbar() {
               className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground"
             >
               {link.label}
-              <span className="absolute inset-x-3.5 -bottom-0.5 h-px origin-left scale-x-0 bg-linear-to-r from-indigo-400 to-blue-500 transition-transform duration-300 group-hover:scale-x-100" />
+              <span className="absolute inset-x-3.5 -bottom-0.5 h-px origin-left scale-x-0 bg-linear-to-r from-blue-400 to-slate-500 transition-transform duration-300 group-hover:scale-x-100" />
             </a>
           ))}
         </div>
@@ -74,7 +74,7 @@ export function Navbar() {
             </Button>
           ) : (
             <Link
-              to="/login"
+              to="/admin"
               className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Sign In
@@ -100,7 +100,7 @@ export function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden border-t border-white/[0.07] bg-[#0a0e1f]/95 backdrop-blur-xl lg:hidden"
+            className="overflow-hidden border-t border-white/[0.07] bg-[#0f131a]/95 backdrop-blur-xl lg:hidden"
           >
             <div className="space-y-1 px-5 py-4">
               {NAV_LINKS.map((link) => (
@@ -129,7 +129,7 @@ export function Navbar() {
                   </Button>
                 ) : (
                   <Button variant="glass" asChild className="w-full">
-                    <Link to="/login" onClick={() => setOpen(false)}>
+                    <Link to="/admin" onClick={() => setOpen(false)}>
                       Sign In
                     </Link>
                   </Button>

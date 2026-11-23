@@ -1,15 +1,10 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
 import { QRCodeSVG } from "qrcode.react"
 import { toast } from "sonner"
 import {
-  ArrowLeft,
-  ArrowRight,
-  Building2,
   CalendarDays,
   CalendarPlus,
-  Check,
   CheckCircle2,
   ClipboardList,
   Clock,
@@ -18,357 +13,51 @@ import {
   MapPin,
   Navigation,
   QrCode,
-  Search,
-  ShieldCheck,
-  Sparkles,
   UserRound,
   Users,
-  XCircle,
 } from "lucide-react"
 import { AuthPanel } from "@/components/auth/AuthPanel"
 import { Background } from "@/components/background"
-import { LogoWordmark } from "@/components/logo"
+import { PublicNav } from "@/components/public/PublicNav"
 import { Alert } from "@/components/ui/Alert"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog"
-import { Input, Textarea } from "@/components/ui/Input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
+import { Input } from "@/components/ui/Input"
 import { Skeleton } from "@/components/ui/Skeleton"
+import { EMPTY_DRAFT, STEP_LABELS, type Draft, type Step } from "@/components/visitor/booking"
+import { CompanyStep } from "@/components/visitor/CompanyStep"
+import { IdentityStep } from "@/components/visitor/IdentityStep"
+import { Instructions } from "@/components/visitor/Instructions"
+import { ConfirmStep } from "@/components/visitor/ConfirmStep"
+import { PurposeStep } from "@/components/visitor/PurposeStep"
+import { SharePass } from "@/components/visitor/SharePass"
+import { TimeStep } from "@/components/visitor/TimeStep"
+import { StepProgress } from "@/components/visitor/ui"
+import { Inspiration } from "@/components/visitor/Inspiration"
+import type { PassPerson } from "@/components/visitor/VisitorPass"
 import { ConfirmDialog } from "@/components/widgets/ConfirmDialog"
 import { Field } from "@/components/widgets/Field"
 import { StatusChip } from "@/components/widgets/StatusChip"
-import { api } from "@/lib/api"
 import { categoryLabel } from "@/lib/student-options"
-import { useTheme } from "@/lib/theme"
-import { formatApiError, type AvailabilitySlot, type BookingHost, type HostAvailabilityResponse } from "@/lib/types"
+import { formatApiError, type AvailabilitySlot } from "@/lib/types"
 import { cn, formatDate, formatDateTime, todayIso } from "@/lib/utils"
 import {
   getVisitorToken,
   useAnnounceArrival,
   useBookingAvailability,
   useCancelBooking,
-  useCreateBooking,
-  useOrganizationContext,
-  useOrganizationSearch,
   useRescheduleBooking,
   useVisitorAccount,
+  useMyStudentPasses,
   useVisitorBookings,
   useVisitorLogout,
   type OrganizationResult,
   type VisitorVisit,
 } from "@/lib/visitor-api"
-import { Moon, Sun } from "lucide-react"
 
-type Step = "account" | "organisation" | "details" | "schedule" | "review" | "done"
-const STEPS: { key: Step; label: string }[] = [
-  { key: "account", label: "Your account" },
-  { key: "organisation", label: "Where" },
-  { key: "details", label: "Visit details" },
-  { key: "schedule", label: "When" },
-  { key: "review", label: "Review" },
-  { key: "done", label: "Confirmed" },
-]
-
-interface Draft {
-  /** Catalogue category key (who is visiting); drives the purpose list. */
-  category: string
-  purpose: string
-  purpose_other: string
-  department: string
-  building: string
-  floor: string
-  host: string
-  visit_date: string
-  slot: AvailabilitySlot | null
-  notes: string
-}
-const EMPTY_DRAFT: Draft = {
-  category: "",
-  purpose: "",
-  purpose_other: "",
-  department: "",
-  building: "",
-  floor: "",
-  host: "",
-  visit_date: "",
-  slot: null,
-  notes: "",
-}
-
-function usePublicHosts(slug: string, department: string) {
-  return useQuery({
-    queryKey: ["visitor", "hosts", slug, department],
-    queryFn: () =>
-      api<BookingHost[]>(`/api/public/booking/${encodeURIComponent(slug)}/hosts/${department ? `?department=${department}` : ""}`),
-    enabled: Boolean(slug),
-  })
-}
-
-function usePublicAvailability(slug: string, host: string, date: string) {
-  return useQuery({
-    queryKey: ["visitor", "slots", slug, host, date],
-    queryFn: () =>
-      api<HostAvailabilityResponse>(`/api/public/booking/${encodeURIComponent(slug)}/availability/?host=${host}&date=${date}`),
-    enabled: Boolean(slug && host && date),
-    retry: false,
-  })
-}
-
-/* ------------------------------------------------------------- step rail */
-
-function StepRail({ current }: { current: Step }) {
-  const idx = STEPS.findIndex((s) => s.key === current)
-  return (
-    <ol className="flex items-center gap-1 overflow-x-auto pb-1 sm:gap-2" aria-label="Booking progress">
-      {STEPS.map((s, i) => {
-        const done = i < idx
-        const active = i === idx
-        return (
-          <li key={s.key} className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <span
-              className={cn(
-                "flex size-7 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                done && "border-primary bg-primary text-primary-foreground",
-                active && "border-primary bg-primary-soft text-primary",
-                !done && !active && "border-border bg-card text-muted-foreground",
-              )}
-            >
-              {done ? <Check className="size-3.5" /> : i + 1}
-            </span>
-            <span className={cn("hidden text-xs font-medium sm:block", active ? "text-foreground" : "text-muted-foreground")}>{s.label}</span>
-            {i < STEPS.length - 1 && <span className={cn("mx-1 h-px w-4 sm:w-8", done ? "bg-primary" : "bg-border")} />}
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
-/* -------------------------------------------------- organisation step */
-
-function OrganisationStep({ preset, onPick }: { preset: string; onPick: (org: OrganizationResult) => void }) {
-  const [q, setQ] = useState("")
-  const [picked, setPicked] = useState("")
-  const directory = useOrganizationSearch(q)
-  const presetCtx = useOrganizationContext(preset)
-
-  useEffect(() => {
-    if (preset && presetCtx.data) {
-      const o = presetCtx.data.organization
-      onPick({ id: o.id, name: o.name, slug: o.slug, tagline: o.tagline, city: o.city, country: o.country, buildings: presetCtx.data.buildings })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, presetCtx.data])
-
-  const list = directory.data ?? []
-  const floorsLabel = (floors: { level: number; name: string }[]) => {
-    if (floors.length === 0) return ""
-    const sorted = [...floors].sort((a, b) => a.level - b.level)
-    return floors.length <= 3 ? sorted.map((f) => f.name).join(", ") : `${sorted[0].name} – ${sorted[sorted.length - 1].name} (${floors.length} floors)`
-  }
-
-  return (
-    <Card>
-      <CardContent className="p-5 sm:p-7">
-        <h2 className="text-xl font-bold tracking-tight">Where are you visiting?</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick the company from the directory below. Each entry lists its buildings and floors; use the search box to narrow the list. If you were given a booking link, it is already selected.
-        </p>
-        {preset && presetCtx.isError && (
-          <Alert variant="danger" className="mt-4"><XCircle className="mt-0.5 size-4 shrink-0" /><span>We couldn't find an organisation for the link <code>/{preset}</code>. Choose it from the directory instead.</span></Alert>
-        )}
-        {preset && presetCtx.isLoading && <Skeleton className="mt-4 h-12 w-full" />}
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by company, building or city…" className="h-11 pl-9" aria-label="Filter the directory" />
-          </div>
-          <Select
-            value={picked}
-            onValueChange={(slug) => {
-              setPicked(slug)
-              const org = list.find((o) => o.slug === slug)
-              if (org) onPick(org)
-            }}
-          >
-            <SelectTrigger className="h-11" aria-label="Choose a company from the directory">
-              <SelectValue placeholder={directory.isLoading ? "Loading directory…" : `Choose a company (${list.length})`} />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              {list.map((o) => (
-                <SelectItem key={o.slug} value={o.slug}>
-                  <span className="font-medium">{o.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {[o.city, ...o.buildings.map((b) => `${b.name}${b.floors.length ? ` · ${floorsLabel(b.floors)}` : ""}`)].filter(Boolean).join(" · ")}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-xl border border-border">
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-3 border-b border-border bg-surface-2 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Company</span>
-            <span>Building · floors</span>
-            <span className="sr-only">Select</span>
-          </div>
-          {directory.isLoading ? (
-            <div className="space-y-2 p-3"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
-          ) : directory.isError ? (
-            <p className="p-4 text-sm text-danger">Couldn't load the directory. {formatApiError(directory.error)}</p>
-          ) : list.length === 0 ? (
-            <p className="p-5 text-center text-sm text-muted-foreground">
-              {q ? <>No company matches “{q}”. Try another spelling, or ask your host for their booking link.</> : "No organisations are registered yet."}
-            </p>
-          ) : (
-            <ul className="max-h-[26rem] divide-y divide-border overflow-y-auto">
-              {list.map((o) => (
-                <li key={o.id}>
-                  <button
-                    type="button"
-                    onClick={() => { setPicked(o.slug); onPick(o) }}
-                    className="grid w-full grid-cols-[1fr_1fr_auto] items-center gap-3 px-3.5 py-3 text-left transition hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Building2 className="size-4" /></span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold">{o.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{[o.tagline, o.city, o.country].filter(Boolean).join(" · ") || o.slug}</span>
-                      </span>
-                    </span>
-                    <span className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
-                      {o.buildings.length === 0 ? (
-                        <span>No buildings listed</span>
-                      ) : (
-                        o.buildings.map((b) => (
-                          <span key={b.id} className="block truncate">
-                            <span className="font-medium text-foreground">{b.name}</span>
-                            {b.floors.length > 0 ? ` · ${floorsLabel(b.floors)}` : ""}
-                          </span>
-                        ))
-                      )}
-                    </span>
-                    <ArrowRight className="size-4 text-muted-foreground" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-/* ------------------------------------------------------- details step */
-
-function DetailsStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; draft: Draft; setDraft: (d: Draft) => void; onBack: () => void; onNext: () => void }) {
-  const ctx = useOrganizationContext(slug)
-  const account = useVisitorAccount()
-  const hosts = usePublicHosts(slug, draft.department)
-  const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch })
-  const categories = ctx.data?.visitor_categories ?? []
-  const category = categories.find((c) => c.key === draft.category)
-  const purposes = category?.purposes ?? []
-  const building = ctx.data?.buildings.find((b) => String(b.id) === draft.building)
-  const valid = draft.category && draft.purpose && (draft.purpose !== "Other" || draft.purpose_other.trim()) && draft.host
-
-  // Pre-select the category the visitor chose at sign-up (e.g. Student) so
-  // the usual case is "pick a purpose, pick a host".
-  const accountCategory = account.data?.category ?? ""
-  const buildingCount = ctx.data?.buildings.length ?? 0
-  useEffect(() => {
-    const next: Partial<Draft> = {}
-    if (!draft.category && categories.length > 0) {
-      next.category = categories.some((c) => c.key === accountCategory) ? accountCategory : categories[0].key
-    }
-    // One building: there is nothing to choose, so pre-select it.
-    if (!draft.building && buildingCount === 1) next.building = String(ctx.data!.buildings[0].id)
-    if (Object.keys(next).length) setDraft({ ...draft, ...next })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories.length, accountCategory, buildingCount])
-
-  if (ctx.isLoading) return <Skeleton className="h-96 w-full" />
-  if (ctx.isError || !ctx.data) return <Alert variant="danger">Couldn't load the booking form. <Button variant="ghost" size="sm" onClick={onBack}>Choose another organisation</Button></Alert>
-
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-5 sm:p-7">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">What brings you to {ctx.data.organization.name}?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Choose who you are and what you're coming for; the team assigns your room when they approve.</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="d-cat" label="I am a" required>
-            <Select value={draft.category} onValueChange={(v) => set({ category: v, purpose: "", purpose_other: "" })}>
-              <SelectTrigger id="d-cat"><SelectValue placeholder="Choose who you are" /></SelectTrigger>
-              <SelectContent>{categories.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field id="d-purpose" label="Purpose of visit" required hint={purposes.find((p) => p.label === draft.purpose)?.room_type ? "You'll be sent to the right room for this." : undefined}>
-            <Select value={draft.purpose} onValueChange={(v) => set({ purpose: v })} disabled={!draft.category}>
-              <SelectTrigger id="d-purpose"><SelectValue placeholder={draft.category ? "Choose a purpose" : "Pick who you are first"} /></SelectTrigger>
-              <SelectContent>{purposes.map((p) => <SelectItem key={p.label} value={p.label}>{p.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          {draft.purpose === "Other" && (
-            <Field id="d-other" label="Describe the purpose" required><Input id="d-other" maxLength={120} value={draft.purpose_other} onChange={(e) => set({ purpose_other: e.target.value })} /></Field>
-          )}
-          <Field id="d-dept" label="Department" hint="Optional; narrows the list of people.">
-            <Select value={draft.department || "any"} onValueChange={(v) => set({ department: v === "any" ? "" : v, host: "" })}>
-              <SelectTrigger id="d-dept"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any department</SelectItem>
-                {ctx.data.departments.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field id="d-host" label="Person you are meeting" required error={hosts.data && hosts.data.length === 0 ? "Nobody is available for booking in this department yet." : undefined}>
-            <Select value={draft.host} onValueChange={(v) => set({ host: v, slot: null })}>
-              <SelectTrigger id="d-host"><SelectValue placeholder={hosts.isLoading ? "Loading…" : "Choose a host"} /></SelectTrigger>
-              <SelectContent>
-                {(hosts.data ?? []).map((h) => (
-                  <SelectItem key={h.id} value={String(h.id)}>{h.name}{h.designation ? ` · ${h.designation}` : ""}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field id="d-bld" label="Building" hint="Staff confirm the exact room when they approve.">
-            <Select value={draft.building || "any"} onValueChange={(v) => set({ building: v === "any" ? "" : v, floor: "" })}>
-              <SelectTrigger id="d-bld"><SelectValue placeholder="Choose a building" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Not sure</SelectItem>
-                {ctx.data.buildings.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.address ? ` · ${b.address}` : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field id="d-floor" label="Floor" hint={building && building.floors.length === 0 ? "This building has no floors listed." : undefined}>
-            <Select value={draft.floor || "any"} onValueChange={(v) => set({ floor: v === "any" ? "" : v })} disabled={!building || building.floors.length === 0}>
-              <SelectTrigger id="d-floor"><SelectValue placeholder={building ? "Choose a floor" : "Pick a building first"} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Not sure</SelectItem>
-                {(building?.floors ?? []).slice().sort((a, b) => a.level - b.level).map((f) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
-          <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" /> Back</Button>
-          <Button onClick={onNext} disabled={!valid}>Choose a time <ArrowRight className="size-4" /></Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-/* ------------------------------------------------------ schedule step */
-
+/** Time slots as buttons (used when rescheduling from My visits). */
 function SlotGrid({ slots, value, onChange, loading, error }: { slots: AvailabilitySlot[]; value: AvailabilitySlot | null; onChange: (s: AvailabilitySlot) => void; loading: boolean; error?: string }) {
   if (loading) return <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
   if (error) return <Alert variant="warning"><Clock className="mt-0.5 size-4 shrink-0" /><span>{error}</span></Alert>
@@ -389,144 +78,6 @@ function SlotGrid({ slots, value, onChange, loading, error }: { slots: Availabil
         )
       })}
     </div>
-  )
-}
-
-/** The next `days` calendar days as dropdown options, starting today. */
-function upcomingDays(days = 30): { value: string; label: string }[] {
-  const out: { value: string; label: string }[] = []
-  const d = new Date()
-  d.setHours(12, 0, 0, 0)
-  for (let i = 0; i < days; i++) {
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-    const label = `${i === 0 ? "Today · " : i === 1 ? "Tomorrow · " : ""}${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`
-    out.push({ value, label })
-    d.setDate(d.getDate() + 1)
-  }
-  return out
-}
-
-function ScheduleStep({ slug, draft, setDraft, onBack, onNext }: { slug: string; draft: Draft; setDraft: (d: Draft) => void; onBack: () => void; onNext: () => void }) {
-  const avail = usePublicAvailability(slug, draft.host, draft.visit_date)
-  const days = upcomingDays()
-  const slots = avail.data?.slots ?? []
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-5 sm:p-7">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">When would you like to come?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Only times inside working hours when your host is free are listed.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="s-date" label="Date" required hint="Next 30 days.">
-            <Select value={draft.visit_date} onValueChange={(v) => setDraft({ ...draft, visit_date: v, slot: null })}>
-              <SelectTrigger id="s-date"><SelectValue placeholder="Choose a date" /></SelectTrigger>
-              <SelectContent>{days.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field
-            id="s-time"
-            label="Arrival time"
-            required
-            hint={avail.data ? `${avail.data.slot_duration_minutes}-minute slots` : undefined}
-            error={avail.isError ? formatApiError(avail.error) : draft.visit_date && avail.data && slots.length === 0 ? "No free slots on this day. Try another date." : undefined}
-          >
-            <Select
-              value={draft.slot?.start ?? ""}
-              onValueChange={(start) => setDraft({ ...draft, slot: slots.find((s) => s.start === start) ?? null })}
-              disabled={!draft.visit_date || avail.isLoading || slots.length === 0}
-            >
-              <SelectTrigger id="s-time"><SelectValue placeholder={!draft.visit_date ? "Pick a date first" : avail.isLoading ? "Checking availability…" : "Choose a time"} /></SelectTrigger>
-              <SelectContent>{slots.map((s) => <SelectItem key={s.start} value={s.start}>{s.start} – {s.end}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-        </div>
-        {draft.visit_date && !avail.isLoading && slots.length > 0 && (
-          <div>
-            <div className="mb-1.5 text-xs font-medium text-muted-foreground">Or tap a time</div>
-            <SlotGrid slots={slots} value={draft.slot} onChange={(slot) => setDraft({ ...draft, slot })} loading={false} />
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
-          <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" /> Back</Button>
-          <Button onClick={onNext} disabled={!draft.slot}>Review booking <ArrowRight className="size-4" /></Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-/* -------------------------------------------------------- review step */
-
-function ReviewStep({ org, slug, draft, setDraft, onBack, onDone }: { org: OrganizationResult; slug: string; draft: Draft; setDraft: (d: Draft) => void; onBack: () => void; onDone: (v: VisitorVisit) => void }) {
-  const account = useVisitorAccount()
-  const ctx = useOrganizationContext(slug)
-  const hosts = usePublicHosts(slug, draft.department)
-  const create = useCreateBooking()
-  const host = hosts.data?.find((h) => String(h.id) === draft.host)
-  const dept = ctx.data?.departments.find((d) => String(d.id) === draft.department)
-  const bld = ctx.data?.buildings.find((b) => String(b.id) === draft.building)
-
-  const submit = async () => {
-    if (!draft.slot) return
-    try {
-      const res = await create.mutateAsync({
-        organization: slug,
-        category: draft.category,
-        purpose: draft.purpose,
-        purpose_other: draft.purpose_other,
-        department: draft.department ? Number(draft.department) : null,
-        building: draft.building ? Number(draft.building) : null,
-        floor: draft.floor ? Number(draft.floor) : null,
-        host: Number(draft.host),
-        visit_date: draft.visit_date,
-        expected_arrival: draft.slot.start,
-        expected_exit: draft.slot.end,
-        notes: draft.notes,
-      })
-      toast.success("Booking submitted", { description: res.message })
-      onDone(res.visit)
-    } catch (err) {
-      toast.error("Booking failed", { description: formatApiError(err) })
-    }
-  }
-
-  const rows: [string, string][] = [
-    ["Organisation", [org.name, org.city].filter(Boolean).join(" · ")],
-    ["Visit", `${categoryLabel(draft.category, ctx.data?.visitor_categories)} · ${draft.purpose === "Other" ? draft.purpose_other : draft.purpose}`],
-    ["Meeting", host ? `${host.name}${host.designation ? `, ${host.designation}` : ""}${dept ? ` (${dept.name})` : ""}` : "—"],
-    ["Location", [bld?.name, bld?.floors.find((f) => String(f.id) === draft.floor)?.name].filter(Boolean).join(", ") || "To be confirmed"],
-    ["When", draft.slot ? `${formatDate(draft.visit_date)} · ${draft.slot.start}–${draft.slot.end}` : "—"],
-    ["You", account.data ? `${account.data.full_name} · ${account.data.phone} · ${account.data.email}` : "—"],
-    ...(account.data && (account.data.university || account.data.qualification || account.data.state)
-      ? [["Profile", [account.data.qualification, account.data.passing_year ? `batch ${account.data.passing_year}` : "", account.data.university, account.data.state].filter(Boolean).join(" · ")] as [string, string]]
-      : []),
-  ]
-
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-5 sm:p-7">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Review and submit</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Your host will approve the request; you'll find your QR pass here once they do.</p>
-        </div>
-        <dl className="divide-y divide-border rounded-xl border border-border">
-          {rows.map(([k, v]) => (
-            <div key={k} className="grid grid-cols-[6.5rem_1fr] gap-3 px-4 py-2.5 text-sm">
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="font-medium">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <Field id="r-notes" label="Anything your host should know?" hint="Optional, e.g. accessibility needs, parking, equipment.">
-          <Textarea id="r-notes" rows={3} maxLength={1000} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
-        </Field>
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
-          <Button variant="ghost" onClick={onBack} disabled={create.isPending}><ArrowLeft className="size-4" /> Back</Button>
-          <Button size="lg" onClick={submit} loading={create.isPending}><CheckCircle2 className="size-4" /> Submit booking</Button>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -581,6 +132,7 @@ function PassDialog({ visit, onClose }: { visit: VisitorVisit | null; onClose: (
               <div className="mt-1 font-mono text-xs text-muted-foreground">Ref {visit.reference.slice(0, 8)}</div>
               {!visit.qr?.is_valid && <Badge tone="neutral" className="mt-2">This pass has already been used or has expired</Badge>}
             </div>
+            {visit.qr?.is_valid && <SharePass visit={visit} payload={payload} />}
           </div>
         )}
         <DialogFooter><Button onClick={onClose}>Done</Button></DialogFooter>
@@ -623,6 +175,37 @@ function RescheduleDialog({ visit, onClose }: { visit: VisitorVisit | null; onCl
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** An admitted student's 6-month pass, shown above their visits. */
+function MyStudentPassCard() {
+  const passes = useMyStudentPasses()
+  const list = passes.data?.passes ?? []
+  if (list.length === 0) return null
+  return (
+    <section className="space-y-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your student pass</h3>
+      {list.map((p) => (
+        <div key={p.id} className="flex flex-col gap-4 rounded-2xl bg-nav p-5 text-nav-foreground shadow-lift sm:flex-row sm:items-center">
+          <div className={cn("self-center rounded-xl bg-white p-2", !p.payload && "opacity-40 grayscale")}>
+            {p.payload ? <QRCodeSVG value={p.payload} size={150} fgColor="#0f172a" level="M" /> : <div className="size-[150px]" />}
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="text-sm text-nav-muted">{p.organization_name}</div>
+            <div className="text-lg font-semibold">{p.student_name}</div>
+            <div className="font-mono text-sm text-nav-accent">{p.admission_number}</div>
+            <div className="text-sm text-nav-muted">{p.course}{p.batch ? ` · ${p.batch}` : ""}</div>
+            <div className="text-sm">
+              {p.status === "ACTIVE" && <>Valid until <span className="font-semibold">{formatDate(p.valid_until)}</span>. Scan it at the gate when you arrive and leave.</>}
+              {p.status === "UPCOMING" && <>Starts on <span className="font-semibold">{formatDate(p.valid_from)}</span>.</>}
+              {p.status === "EXPIRED" && <span className="text-amber-300">Expired on {formatDate(p.valid_until)}. Ask the office to renew it.</span>}
+              {p.status === "REVOKED" && <span className="text-red-300">This pass has been cancelled. Please contact the office.</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+    </section>
   )
 }
 
@@ -698,6 +281,7 @@ function MyVisits({ onBookAnother }: { onBookAnother: () => void }) {
         </div>
         <Button onClick={onBookAnother}><CalendarPlus className="size-4" /> New visit</Button>
       </div>
+      <MyStudentPassCard />
       {bookings.isLoading ? (
         <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
       ) : list.length === 0 ? (
@@ -746,61 +330,85 @@ export function VisitorHubPage() {
   const { slug: slugParam } = useParams<{ slug?: string }>()
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const { resolved, toggle } = useTheme()
   const account = useVisitorAccount()
   const logout = useVisitorLogout()
   const signedIn = Boolean(getVisitorToken()) && !account.isError
 
   const [step, setStep] = useState<Step>("account")
   const [view, setView] = useState<"book" | "visits">(params.get("view") === "visits" ? "visits" : "book")
+  // Menu links (E-Services) switch views via ?view= while the page is open.
+  const viewParam = params.get("view")
+  useEffect(() => {
+    setView(viewParam === "visits" ? "visits" : "book")
+  }, [viewParam])
   const [org, setOrg] = useState<OrganizationResult | null>(null)
+  /** True when the company was chosen for the visitor (booking link or the only company). */
+  const [autoCompany, setAutoCompany] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [done, setDone] = useState<VisitorVisit | null>(null)
+  const [preview, setPreview] = useState<PassPerson>({ name: "", category: "", email: "" })
+  // Read-before-you-apply notice: shown once per browser session.
+  const [readInstructions, setReadInstructions] = useState(() => {
+    try {
+      return sessionStorage.getItem("admitone_pass_instructions") === "1"
+    } catch {
+      return false
+    }
+  })
+  const acceptInstructions = () => {
+    try {
+      sessionStorage.setItem("admitone_pass_instructions", "1")
+    } catch {
+      /* private mode: show it again next time */
+    }
+    setReadInstructions(true)
+  }
   const preset = slugParam ?? ""
 
   // Skip the account step for a returning visitor.
   useEffect(() => {
-    if (signedIn && account.data && step === "account") setStep("organisation")
+    if (signedIn && account.data && step === "account") setStep("company")
     if (!signedIn && step !== "account") setStep("account")
   }, [signedIn, account.data, step])
 
   const restart = () => {
     setOrg(null)
+    setAutoCompany(false)
     setDraft(EMPTY_DRAFT)
     setDone(null)
     setView("book")
-    setStep(signedIn ? "organisation" : "account")
+    setStep(signedIn ? "company" : "account")
     if (slugParam) navigate("/visitor", { replace: true })
   }
 
+  const pickCompany = (o: OrganizationResult, auto: boolean) => {
+    if (o.id !== org?.id) setDraft(EMPTY_DRAFT)
+    setOrg(o)
+    setAutoCompany(auto)
+    setStep("purpose")
+  }
+
+  const flow: Exclude<Step, "done">[] = ["account", ...(autoCompany ? [] : (["company"] as const)), "purpose", "time", "identity", "confirm"]
+  const progress = flow.map((key) => ({ key, label: STEP_LABELS[key] }))
   const slug = org?.slug ?? ""
-  const showRail = view === "book"
 
   return (
     <div className="min-h-screen">
       <Background />
-      <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link to="/" aria-label="AdmitOne home"><LogoWordmark /></Link>
-          <div className="flex items-center gap-1 sm:gap-2">
-            {signedIn && account.data && (
-              <>
-                <div className="hidden sm:flex rounded-xl border border-border bg-card p-1">
-                  <button type="button" onClick={() => { setView("book"); if (done) restart() }} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium", view === "book" ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground")}>Book a visit</button>
-                  <button type="button" onClick={() => setView("visits")} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium", view === "visits" ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground")}>My visits</button>
-                </div>
-                <span className="hidden items-center gap-2 text-sm text-muted-foreground md:inline-flex"><UserRound className="size-4" /> {account.data.full_name}</span>
-                <Button variant="ghost" size="sm" onClick={() => logout.mutate(undefined, { onSettled: () => { setStep("account"); setView("book"); toast.success("Signed out") } })} aria-label="Sign out"><LogOut className="size-4" /><span className="hidden sm:inline">Sign out</span></Button>
-              </>
-            )}
-            <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">{resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>
-          </div>
-        </div>
-      </header>
+      <PublicNav
+        right={
+          signedIn && account.data ? (
+            <>
+              <span className="hidden items-center gap-2 text-sm text-muted-foreground xl:inline-flex"><UserRound className="size-4" /> {account.data.full_name}</span>
+              <Button variant="ghost" size="sm" onClick={() => logout.mutate(undefined, { onSettled: () => { restart(); setStep("account"); toast.success("Signed out") } })} aria-label="Sign out"><LogOut className="size-4" /><span className="hidden sm:inline">Sign out</span></Button>
+            </>
+          ) : null
+        }
+      />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
         {signedIn && account.data && (
-          <div className="mb-4 flex rounded-xl border border-border bg-card p-1 sm:hidden">
+          <div className="mb-6 flex w-full rounded-xl border border-border bg-card p-1 sm:w-fit">
             <button type="button" onClick={() => { setView("book"); if (done) restart() }} className={cn("flex-1 rounded-lg px-3 py-2 text-sm font-medium", view === "book" ? "bg-primary-soft text-primary" : "text-muted-foreground")}>Book a visit</button>
             <button type="button" onClick={() => setView("visits")} className={cn("flex-1 rounded-lg px-3 py-2 text-sm font-medium", view === "visits" ? "bg-primary-soft text-primary" : "text-muted-foreground")}>My visits</button>
           </div>
@@ -809,58 +417,65 @@ export function VisitorHubPage() {
         {view === "visits" && signedIn ? (
           <MyVisits onBookAnother={restart} />
         ) : (
-          <div className="grid gap-8 lg:grid-cols-[1fr_18rem]">
-            <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
+            <div className="min-w-0 space-y-6">
               <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-                  <ShieldCheck className="size-3.5 text-primary" /> Visitor booking
-                </div>
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Book your visit in a few steps</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Create an account once, choose where and when, and keep your QR pass right here.</p>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">{org && step !== "account" && step !== "company" ? `Book a visit to ${org.name}` : "Book a visit"}</h1>
+                <p className="mt-1.5 max-w-xl text-sm text-muted-foreground sm:text-base">
+                  Tell us why you're coming, pick a time with your host, and send the request. It takes about 3 minutes.
+                </p>
               </div>
-              {showRail && <StepRail current={step} />}
+              {!readInstructions && step !== "done" ? (
+                <Instructions onAccept={acceptInstructions} />
+              ) : (
+              <>
+              {step !== "done" && <StepProgress steps={progress} current={step} />}
 
               {step === "account" && (
-                <AuthPanel role="visitor" initialMode="register" compact onSignedIn={() => setStep("organisation")} />
+                <AuthPanel
+                  role="visitor"
+                  initialMode="login"
+                  portal
+                  onSignedIn={() => setStep("company")}
+                  onPreview={(p) => setPreview({ name: p.full_name, category: p.category, email: p.email.includes("@") ? p.email : "" })}
+                />
               )}
-              {step === "organisation" && (
-                <OrganisationStep preset={preset} onPick={(o) => { setOrg(o); setDraft(EMPTY_DRAFT); setStep("details") }} />
+              {step === "company" && <CompanyStep preset={preset} selected={org} onPick={pickCompany} />}
+              {step === "purpose" && org && (
+                <PurposeStep slug={slug} draft={draft} setDraft={setDraft} onBack={autoCompany ? undefined : () => setStep("company")} onNext={() => setStep("time")} />
               )}
-              {step === "details" && org && (
-                <DetailsStep slug={slug} draft={draft} setDraft={setDraft} onBack={() => { setOrg(null); setStep("organisation"); if (slugParam) navigate("/visitor", { replace: true }) }} onNext={() => setStep("schedule")} />
-              )}
-              {step === "schedule" && org && (
-                <ScheduleStep slug={slug} draft={draft} setDraft={setDraft} onBack={() => setStep("details")} onNext={() => setStep("review")} />
-              )}
-              {step === "review" && org && (
-                <ReviewStep org={org} slug={slug} draft={draft} setDraft={setDraft} onBack={() => setStep("schedule")} onDone={(v) => { setDone(v); setStep("done") }} />
+              {step === "time" && org && <TimeStep slug={slug} draft={draft} setDraft={setDraft} onBack={() => setStep("purpose")} onNext={() => setStep("identity")} />}
+              {step === "identity" && org && <IdentityStep draft={draft} setDraft={setDraft} onBack={() => setStep("time")} onNext={() => setStep("confirm")} />}
+              {step === "confirm" && org && (
+                <ConfirmStep
+                  org={org}
+                  draft={draft}
+                  setDraft={setDraft}
+                  canChangeCompany={!autoCompany}
+                  onEdit={setStep}
+                  onBack={() => setStep("identity")}
+                  onDone={(v) => { setDone(v); setStep("done") }}
+                />
               )}
               {step === "done" && done && <DoneStep visit={done} onAnother={restart} onManage={() => setView("visits")} />}
+              </>
+              )}
             </div>
 
-            <aside className="space-y-4 lg:pt-24">
-              {org && step !== "done" && (
-                <div className="card-surface p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Booking with</div>
-                  <div className="mt-1 font-semibold">{org.name}</div>
-                  <div className="text-xs text-muted-foreground">{[org.tagline, org.city].filter(Boolean).join(" · ")}</div>
-                  {draft.visit_date && draft.slot && (
-                    <div className="mt-3 flex items-center gap-2 text-sm"><CalendarDays className="size-4 text-primary" /> {formatDate(draft.visit_date)} · {draft.slot.start}</div>
-                  )}
-                </div>
-              )}
-              <div className="card-surface space-y-3 p-4 text-sm">
-                <div className="flex items-center gap-2 font-semibold"><Sparkles className="size-4 text-primary" /> How it works</div>
-                <ol className="space-y-2 text-muted-foreground">
-                  <li className="flex gap-2"><span className="font-semibold text-foreground">1.</span> Submit a request with your details and preferred time.</li>
-                  <li className="flex gap-2"><span className="font-semibold text-foreground">2.</span> Your host approves it. You get a single-use QR pass by email and under My visits.</li>
-                  <li className="flex gap-2"><span className="font-semibold text-foreground">3.</span> Show the pass at the gate. Security scans it and you're in.</li>
+            <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+              <Inspiration step={readInstructions ? step : "account"} name={account.data?.full_name ?? preview.name} />
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                <div className="font-semibold">How it works</div>
+                <ol className="mt-2.5 space-y-2 text-muted-foreground">
+                  <li className="flex gap-2.5"><span className="font-semibold text-foreground tabular-nums">1</span> Send a request with your reason and preferred time.</li>
+                  <li className="flex gap-2.5"><span className="font-semibold text-foreground tabular-nums">2</span> Your host approves it and reception assigns your room. Your single-use QR pass arrives by email and under My visits.</li>
+                  <li className="flex gap-2.5"><span className="font-semibold text-foreground tabular-nums">3</span> Show the pass at the gate. Security scans it and you're in.</li>
                 </ol>
                 {signedIn && account.data?.last_login && (
-                  <p className="border-t border-border pt-3 text-xs text-muted-foreground">Signed in as {account.data.email} · last sign-in {formatDateTime(account.data.last_login)}</p>
+                  <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">Signed in as {account.data.email}. Last sign-in {formatDateTime(account.data.last_login)}.</p>
                 )}
               </div>
-              <p className="px-1 text-xs text-muted-foreground">Staff member? <Link to="/login?role=staff" className="font-medium text-primary hover:underline">Sign in to the console</Link>.</p>
+              <p className="px-1 text-xs text-muted-foreground">Staff member? <Link to="/admin" className="font-medium text-primary hover:underline">Go to the admin portal</Link>.</p>
             </aside>
           </div>
         )}

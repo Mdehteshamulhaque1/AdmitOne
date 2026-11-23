@@ -1,62 +1,79 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ArrowLeft, BadgeCheck, CalendarClock, Send, ShieldAlert, UserRoundPlus, Zap } from "lucide-react"
+import { ArrowLeft, BadgeCheck, CalendarClock, ChevronDown, History, Send, UserRoundCheck, Zap } from "lucide-react"
 import { Alert } from "@/components/ui/Alert"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog"
 import { Input, Textarea } from "@/components/ui/Input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
-import { Switch } from "@/components/ui/Switch"
 import { Field } from "@/components/widgets/Field"
+import { Chip, ChoiceTile } from "@/components/widgets/Choice"
 import { PageHeader } from "@/components/widgets/PageHeader"
+import { SearchableSelect } from "@/components/widgets/SearchableSelect"
 import { PassCard } from "@/components/visits/PassCard"
+import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useBuildings, useHosts, useRegisterVisit, useVisitor, useWalkInVisit } from "@/lib/queries"
-import { DOCUMENT_TYPES, VEHICLE_TYPES, formatApiError, type RegisterVisitResponse } from "@/lib/types"
-import { todayIso } from "@/lib/utils"
+import { NOTE_PRESETS } from "@/lib/student-options"
+import { DOCUMENT_TYPES, ROLE_LABELS, VEHICLE_TYPES, formatApiError, type RegisterVisitResponse, type Visitor } from "@/lib/types"
+import { cn, todayIso } from "@/lib/utils"
 
-const visitorSchema = z.object({
-  full_name: z.string().trim().min(2, "Full name is required"),
-  phone: z.string().trim().min(7, "Enter a valid phone number"),
-  email: z.string().trim().email("Enter a valid email").or(z.literal("")),
-  company: z.string().trim(),
-  designation: z.string().trim(),
-  document_type: z.string(),
-  document_number: z.string().trim(),
-  vehicle_type: z.string(),
-  vehicle_number: z.string().trim(),
-})
+/** What visitors usually come to the desk for; reception can still type anything. */
+const COMMON_PURPOSES = ["Interview", "Meeting", "Training session", "Fee payment / admission", "Counselling", "Delivery", "Maintenance", "Casual visit"]
+const DURATIONS = [
+  { minutes: 30, label: "30 min" },
+  { minutes: 60, label: "1 hour" },
+  { minutes: 120, label: "2 hours" },
+  { minutes: 240, label: "Half day" },
+]
 
-const visitSchema = z
-  .object({
-    purpose: z.string().trim().min(3, "Purpose should be at least 3 characters").max(200, "Keep it under 200 characters"),
-    host_id: z.string().min(1, "Select a host"),
-    building_id: z.string().min(1, "Select a building"),
-    visit_date: z.string().min(1, "Pick a date"),
-    expected_arrival: z.string().min(1, "Arrival time is required"),
-    expected_exit: z.string().min(1, "Exit time is required"),
-    notes: z.string().trim(),
-  })
-  .refine((d) => !d.expected_arrival || !d.expected_exit || d.expected_exit > d.expected_arrival, {
-    message: "Exit time must be after arrival",
-    path: ["expected_exit"],
-  })
-
-const formSchema = z.object({ visitor: visitorSchema, visit: visitSchema })
-type FormValues = z.infer<typeof formSchema>
-
-function nextHour(offset = 1): string {
+const pad = (n: number) => String(n).padStart(2, "0")
+function nowHHMM() {
   const d = new Date()
-  d.setMinutes(0, 0, 0)
-  d.setHours(d.getHours() + offset)
-  return `${String(d.getHours()).padStart(2, "0")}:00`
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+function nextHalfHour() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() < 30 ? 30 : 60, 0, 0)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function addMinutes(hhmm: string, minutes: number) {
+  const [h, m] = hhmm.split(":").map(Number)
+  const total = Math.min(h * 60 + m + minutes, 23 * 60 + 59)
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+}
+function isoInDays(days: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function Section({ step, title, hint, children }: { step: number; title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card shadow-card">
+      <header className="flex items-start gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary tabular-nums">{step}</span>
+        <div>
+          <h2 className="font-semibold">{title}</h2>
+          {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+        </div>
+      </header>
+      <div className="space-y-5 p-5 sm:p-6">{children}</div>
+    </section>
+  )
+}
+
+function Label({ children, required }: { children: ReactNode; required?: boolean }) {
+  return (
+    <div className="mb-2 text-sm font-medium">
+      {children} {required && <span className="text-danger">*</span>}
+    </div>
+  )
+}
+
+const EMPTY_VISITOR = { full_name: "", phone: "", email: "", company: "", designation: "", document_type: "", document_number: "", vehicle_type: "none", vehicle_number: "" }
 
 export function RegisterVisitPage() {
   const navigate = useNavigate()
@@ -68,67 +85,120 @@ export function RegisterVisitPage() {
   const buildings = useBuildings()
   const registerVisit = useRegisterVisit()
   const walkInVisit = useWalkInVisit()
+
   const [walkIn, setWalkIn] = useState(searchParams.get("walkin") === "1")
+  const [visitor, setVisitor] = useState(EMPTY_VISITOR)
+  const [usedProfile, setUsedProfile] = useState<Visitor | null>(null)
+  const [purpose, setPurpose] = useState("")
+  const [hostId, setHostId] = useState("")
+  const [buildingId, setBuildingId] = useState("")
+  const [date, setDate] = useState(todayIso())
+  const [arrival, setArrival] = useState(nextHalfHour())
+  const [duration, setDuration] = useState(60)
+  const [notes, setNotes] = useState<string[]>([])
+  const [extraNote, setExtraNote] = useState("")
+  const [showMore, setShowMore] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [issued, setIssued] = useState<RegisterVisitResponse | null>(null)
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      visitor: { full_name: "", phone: "", email: "", company: "", designation: "", document_type: "none", document_number: "", vehicle_type: "none", vehicle_number: "" },
-      visit: { purpose: "", host_id: "", building_id: "", visit_date: todayIso(), expected_arrival: nextHour(1), expected_exit: nextHour(2), notes: "" },
-    },
+  const setV = (k: keyof typeof EMPTY_VISITOR, value: string) => {
+    setVisitor((v) => ({ ...v, [k]: value }))
+    setErrors((e) => ({ ...e, [k]: "" }))
+  }
+  const fill = (v: Visitor) => {
+    setVisitor({
+      full_name: v.full_name,
+      phone: v.phone,
+      email: v.email ?? "",
+      company: v.company ?? "",
+      designation: v.designation ?? "",
+      document_type: v.document_type ?? "",
+      document_number: v.document_number ?? "",
+      vehicle_type: v.vehicle_type || "none",
+      vehicle_number: v.vehicle_number ?? "",
+    })
+    setUsedProfile(v)
+    setErrors({})
+  }
+
+  // Opened from the visitor directory: start from that profile.
+  useEffect(() => {
+    if (prefill.data) fill(prefill.data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill.data])
+
+  // Phone first, like a front desk: a returning visitor is found by number.
+  const digits = visitor.phone.replace(/\D/g, "")
+  const [lookup, setLookup] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setLookup(digits.length >= 6 ? digits : ""), 300)
+    return () => clearTimeout(t)
+  }, [digits])
+  const match = useQuery({
+    queryKey: ["visitors", "phone-lookup", lookup],
+    queryFn: () => api<{ results: Visitor[] }>(`/api/visitors/?q=${encodeURIComponent(lookup)}&page_size=3`),
+    enabled: Boolean(lookup) && !usedProfile,
+    staleTime: 30_000,
   })
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = form
+  const returning = match.data?.results.find((v) => v.phone.replace(/\D/g, "").endsWith(lookup) || lookup.endsWith(v.phone.replace(/\D/g, "")))
 
-  // Prefill from an existing visitor profile (opened from the directory).
+  // Sensible defaults: you are the host; the only building is the building.
   useEffect(() => {
-    const v = prefill.data
-    if (!v) return
-    setValue("visitor.full_name", v.full_name)
-    setValue("visitor.phone", v.phone)
-    setValue("visitor.email", v.email ?? "")
-    setValue("visitor.company", v.company ?? "")
-    setValue("visitor.designation", v.designation ?? "")
-    setValue("visitor.document_type", v.document_type || "none")
-    setValue("visitor.document_number", v.document_number ?? "")
-    setValue("visitor.vehicle_type", v.vehicle_type || "none")
-    setValue("visitor.vehicle_number", v.vehicle_number ?? "")
-  }, [prefill.data, setValue])
-
-  // Default the host to the current user and the building to the only one.
+    if (!hostId && user && hosts.data?.some((h) => h.id === user.id)) setHostId(String(user.id))
+  }, [hosts.data, user, hostId])
   useEffect(() => {
-    if (user && hosts.data?.some((h) => h.id === user.id) && !watch("visit.host_id")) setValue("visit.host_id", String(user.id))
-  }, [hosts.data, user, setValue, watch])
-  useEffect(() => {
-    if (buildings.data?.length === 1 && !watch("visit.building_id")) setValue("visit.building_id", String(buildings.data[0].id))
-  }, [buildings.data, setValue, watch])
+    if (!buildingId && buildings.data?.length) setBuildingId(String(buildings.data[0].id))
+  }, [buildings.data, buildingId])
 
-  const vehicleType = watch("visitor.vehicle_type")
-  const blacklisted = prefill.data?.is_blacklisted ?? false
+  const start = walkIn ? nowHHMM() : arrival
+  const end = addMinutes(start, duration)
+  const host = hosts.data?.find((h) => String(h.id) === hostId)
+  const blacklisted = Boolean(usedProfile?.is_blacklisted || prefill.data?.is_blacklisted)
+  const hostList = hosts.data ?? []
 
-  const onSubmit = async (values: FormValues) => {
+  const summary = useMemo(() => {
+    const who = visitor.full_name.trim() || "Visitor"
+    const when = walkIn ? `now until ${end}` : `${date === todayIso() ? "today" : date} ${start}–${end}`
+    return `${walkIn ? "Walk-in" : "Pre-registered"}: ${who}${purpose ? `, ${purpose}` : ""}${host ? `, with ${host.id === user?.id ? "you" : host.full_name}` : ""}, ${when}`
+  }, [visitor.full_name, walkIn, end, date, start, purpose, host, user])
+
+  const validate = () => {
+    const e: Record<string, string> = {}
+    if (visitor.full_name.trim().length < 2) e.full_name = "Enter the visitor's full name."
+    if (digits.length < 7) e.phone = "Enter a phone number with at least 7 digits."
+    if (visitor.email && !/^\S+@\S+\.\S+$/.test(visitor.email)) e.email = "Enter a valid email, or leave it empty."
+    if (purpose.trim().length < 3) e.purpose = "Choose or type a purpose (at least 3 characters)."
+    if (!hostId) e.host = "Choose who they're meeting."
+    if (!buildingId) e.building = "Choose a building."
+    if (!walkIn && !date) e.date = "Pick a date."
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const submit = async () => {
+    if (!validate()) {
+      toast.error("Some details are missing", { description: "Check the highlighted fields." })
+      return
+    }
     const payload = {
       visitor: {
-        ...values.visitor,
-        document_type: values.visitor.document_type === "none" ? "" : values.visitor.document_type,
-        vehicle_type: values.visitor.vehicle_type === "none" ? "" : values.visitor.vehicle_type,
+        ...visitor,
+        document_type: visitor.document_type,
+        vehicle_type: visitor.vehicle_type === "none" ? "" : visitor.vehicle_type,
       },
       visit: {
-        purpose: values.visit.purpose,
-        host: Number(values.visit.host_id),
-        building: Number(values.visit.building_id),
-        visit_date: values.visit.visit_date,
-        expected_arrival: values.visit.expected_arrival,
-        expected_exit: values.visit.expected_exit,
-        notes: values.visit.notes,
+        purpose: purpose.trim(),
+        host: Number(hostId),
+        building: Number(buildingId),
+        visit_date: walkIn ? todayIso() : date,
+        expected_arrival: start,
+        expected_exit: end,
+        notes: [...notes, extraNote.trim()].filter(Boolean).join("; "),
       },
     }
     try {
       const result = walkIn ? await walkInVisit.mutateAsync(payload) : await registerVisit.mutateAsync(payload)
-      for (const warning of result.warnings ?? []) {
-        toast.warning("Schedule clash", { description: warning, duration: 8000 })
-      }
-      reset()
+      for (const warning of result.warnings ?? []) toast.warning("Schedule clash", { description: warning, duration: 8000 })
       if (walkIn && result.visit.qr) {
         setIssued(result)
       } else {
@@ -136,128 +206,239 @@ export function RegisterVisitPage() {
         navigate("/dashboard/approvals")
       }
     } catch (err) {
-      toast.error(walkIn ? "Walk-in registration failed" : "Registration failed", { description: formatApiError(err) })
+      toast.error(walkIn ? "The walk-in pass wasn't issued" : "The visit wasn't registered", { description: formatApiError(err) })
     }
+  }
+
+  const resetForm = () => {
+    setVisitor(EMPTY_VISITOR)
+    setUsedProfile(null)
+    setPurpose("")
+    setNotes([])
+    setExtraNote("")
+    setErrors({})
   }
 
   const submitting = registerVisit.isPending || walkInVisit.isPending
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5 pb-28">
       <PageHeader
-        title={walkIn ? "Register a walk-in" : "Register a visit"}
-        description={walkIn ? "The visitor is here now: the visit is approved instantly and a single-use pass is issued." : "Pre-register a visitor so the host can approve before they arrive. The visitor receives a QR pass by email on approval."}
+        title="Register a visit"
+        description="For visitors at the desk now, or people you want to let in later."
         actions={
           <Button variant="ghost" asChild>
-            <Link to="/dashboard/visitors"><ArrowLeft className="size-4" /> Back</Link>
+            <Link to="/dashboard/visits"><ArrowLeft className="size-4" /> Visits</Link>
           </Button>
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
-        <div className="space-y-0.5">
-          <p className="flex items-center gap-2 text-sm font-medium"><Zap className="size-4 text-warning" /> Walk-in mode</p>
-          <p className="text-xs text-muted-foreground">Skips host approval and issues the pass immediately. Use it for visitors already at the desk.</p>
-        </div>
-        <Switch checked={walkIn} onCheckedChange={setWalkIn} aria-label="Toggle walk-in registration" />
+      <div role="radiogroup" aria-label="Visit type" className="grid gap-3 sm:grid-cols-2">
+        <ChoiceTile
+          selected={walkIn}
+          onSelect={() => setWalkIn(true)}
+          icon={<Zap className="size-5" />}
+          title="Here now (walk-in)"
+          description="Approved straight away; the pass is shown to hand over at the gate."
+        />
+        <ChoiceTile
+          selected={!walkIn}
+          onSelect={() => setWalkIn(false)}
+          icon={<CalendarClock className="size-5" />}
+          title="Coming later"
+          description="Pre-register for a date and time; the host approves and the pass is emailed."
+        />
       </div>
 
-      {prefill.data && (
-        <Alert variant={blacklisted ? "danger" : "info"}>
-          <BadgeCheck className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Pre-filled from <strong>{prefill.data.full_name}</strong>'s profile.
-            {blacklisted ? " This visitor is blacklisted and cannot be approved." : " Details you change here update their profile."}
-          </span>
-        </Alert>
+      {blacklisted && (
+        <Alert variant="danger"><span>This visitor is on the blacklist and can't be admitted. Talk to an admin before continuing.</span></Alert>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><UserRoundPlus className="size-4 text-primary" /> Visitor</CardTitle>
-            <CardDescription>Phone number identifies a visitor: registering the same number again reuses their profile.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field id="full_name" label="Full name" required error={errors.visitor?.full_name?.message}><Input id="full_name" autoComplete="off" {...register("visitor.full_name")} /></Field>
-            <Field id="phone" label="Phone" required error={errors.visitor?.phone?.message}><Input id="phone" inputMode="tel" autoComplete="off" {...register("visitor.phone")} /></Field>
-            <Field id="email" label="Email" hint="Needed to email the QR pass." error={errors.visitor?.email?.message}><Input id="email" type="email" autoComplete="off" {...register("visitor.email")} /></Field>
-            <Field id="company" label="Company"><Input id="company" {...register("visitor.company")} /></Field>
-            <Field id="designation" label="Designation"><Input id="designation" {...register("visitor.designation")} /></Field>
-            <Field id="document_type" label="ID document">
-              <Select value={watch("visitor.document_type")} onValueChange={(v) => setValue("visitor.document_type", v)}>
-                <SelectTrigger id="document_type"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not recorded</SelectItem>
-                  {DOCUMENT_TYPES.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            {watch("visitor.document_type") !== "none" && (
-              <Field id="document_number" label="Document number"><Input id="document_number" {...register("visitor.document_number")} /></Field>
-            )}
-            <Field id="vehicle_type" label="Vehicle">
-              <Select value={vehicleType} onValueChange={(v) => { setValue("visitor.vehicle_type", v); if (v === "none") setValue("visitor.vehicle_number", "") }}>
-                <SelectTrigger id="vehicle_type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {VEHICLE_TYPES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            {vehicleType !== "none" && (
-              <Field id="vehicle_number" label="Vehicle number"><Input id="vehicle_number" {...register("visitor.vehicle_number")} /></Field>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><CalendarClock className="size-4 text-accent" /> Visit</CardTitle>
-            <CardDescription>Who they are meeting, where and when.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field id="purpose" label="Purpose of visit" required error={errors.visit?.purpose?.message} className="sm:col-span-2"><Input id="purpose" placeholder="e.g. Technical interview, vendor delivery" {...register("visit.purpose")} /></Field>
-            <Field id="host_id" label="Host" required error={errors.visit?.host_id?.message ?? (hosts.isError ? "Couldn't load hosts." : undefined)} hint={hosts.data && hosts.data.length === 0 ? "Add team members in Settings → Team first." : undefined}>
-              <Select value={watch("visit.host_id")} onValueChange={(v) => setValue("visit.host_id", v, { shouldValidate: true })}>
-                <SelectTrigger id="host_id"><SelectValue placeholder="Select host" /></SelectTrigger>
-                <SelectContent>
-                  {(hosts.data ?? []).map((h) => <SelectItem key={h.id} value={String(h.id)}>{h.full_name}{h.id === user?.id ? " (you)" : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field id="building_id" label="Building" required error={errors.visit?.building_id?.message ?? (buildings.isError ? "Couldn't load buildings." : undefined)}>
-              <Select value={watch("visit.building_id")} onValueChange={(v) => setValue("visit.building_id", v, { shouldValidate: true })}>
-                <SelectTrigger id="building_id"><SelectValue placeholder="Select building" /></SelectTrigger>
-                <SelectContent>
-                  {(buildings.data ?? []).map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field id="visit_date" label="Visit date" required error={errors.visit?.visit_date?.message}><Input id="visit_date" type="date" min={todayIso()} {...register("visit.visit_date")} /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field id="expected_arrival" label="Arrival" required error={errors.visit?.expected_arrival?.message}><Input id="expected_arrival" type="time" {...register("visit.expected_arrival")} /></Field>
-              <Field id="expected_exit" label="Exit" required error={errors.visit?.expected_exit?.message}><Input id="expected_exit" type="time" {...register("visit.expected_exit")} /></Field>
-            </div>
-            <Field id="notes" label="Notes for security" className="sm:col-span-2"><Textarea id="notes" rows={3} placeholder="Anything the gate should know (escort required, equipment, parking…)" {...register("visit.notes")} /></Field>
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Alert variant={walkIn ? "warning" : "info"} className="flex-1">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-            <span>
-              {walkIn
-                ? <>The visit is created as <strong>Approved</strong> and a single-use QR pass is shown for the gate.</>
-                : <>The visit starts as <strong>Pending</strong>. The visitor receives a QR pass once the host approves it.</>}
+      <Section step={1} title="Visitor" hint="Start with the phone number: returning visitors are found automatically.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="phone" label="Phone" required error={errors.phone}>
+            <Input id="phone" inputMode="tel" autoComplete="off" value={visitor.phone} onChange={(e) => { setV("phone", e.target.value); if (usedProfile) setUsedProfile(null) }} placeholder="Mobile number" />
+          </Field>
+          <Field id="full_name" label="Full name" required error={errors.full_name}>
+            <Input id="full_name" autoComplete="off" value={visitor.full_name} onChange={(e) => setV("full_name", e.target.value)} />
+          </Field>
+        </div>
+        {returning && !usedProfile && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm">
+            <History className="size-4 text-primary" />
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold">{returning.full_name}</span> has visited before
+              {returning.visit_count ? ` (${returning.visit_count} visit${returning.visit_count === 1 ? "" : "s"})` : ""}
+              {returning.company ? `, ${returning.company}` : ""}.
+              {returning.is_blacklisted && <Badge tone="danger" size="sm" className="ml-2">Blacklisted</Badge>}
             </span>
-          </Alert>
-          <Button type="submit" size="lg" loading={submitting} disabled={blacklisted} className="min-w-44">
-            {walkIn ? <><BadgeCheck className="size-4" /> Issue walk-in pass</> : <><Send className="size-4" /> Register visit</>}
+            <Button size="sm" variant="outline" onClick={() => fill(returning)}>Use these details</Button>
+          </div>
+        )}
+        {usedProfile && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <UserRoundCheck className="size-4 text-success" /> Using {usedProfile.full_name}'s saved details. Changes here update their profile.
+          </p>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="email" label="Email" hint={walkIn ? "Optional." : "Needed to email the QR pass."} error={errors.email}>
+            <Input id="email" type="email" autoComplete="off" value={visitor.email} onChange={(e) => setV("email", e.target.value)} />
+          </Field>
+          <Field id="company" label="Company or college" hint="Optional.">
+            <Input id="company" value={visitor.company} onChange={(e) => setV("company", e.target.value)} />
+          </Field>
+        </div>
+
+        <div>
+          <button type="button" onClick={() => setShowMore((s) => !s)} aria-expanded={showMore} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+            <ChevronDown className={cn("size-4 transition-transform", showMore && "rotate-180")} />
+            {showMore ? "Hide ID and vehicle" : "Add ID or vehicle (optional)"}
+          </button>
+          {showMore && (
+            <div className="mt-4 space-y-4">
+              <Field id="designation" label="Designation">
+                <Input id="designation" value={visitor.designation} onChange={(e) => setV("designation", e.target.value)} placeholder="e.g. HR Manager" />
+              </Field>
+              <div>
+                <Label>ID document</Label>
+                <div role="radiogroup" aria-label="ID document" className="flex flex-wrap gap-2">
+                  <Chip role="radio" selected={!visitor.document_type} onClick={() => { setV("document_type", ""); setV("document_number", "") }}>Not recorded</Chip>
+                  {DOCUMENT_TYPES.map((d) => (
+                    <Chip key={d.value} role="radio" selected={visitor.document_type === d.value} onClick={() => setV("document_type", d.value)}>{d.label}</Chip>
+                  ))}
+                </div>
+                {visitor.document_type && (
+                  <Input className="mt-3" aria-label="Document number" value={visitor.document_number} onChange={(e) => setV("document_number", e.target.value)} placeholder="Document number" />
+                )}
+              </div>
+              <div>
+                <Label>Vehicle</Label>
+                <div role="radiogroup" aria-label="Vehicle" className="flex flex-wrap gap-2">
+                  {VEHICLE_TYPES.map((v) => (
+                    <Chip key={v.value} role="radio" selected={visitor.vehicle_type === v.value} onClick={() => { setV("vehicle_type", v.value); if (v.value === "none") setV("vehicle_number", "") }}>{v.label}</Chip>
+                  ))}
+                </div>
+                {visitor.vehicle_type !== "none" && (
+                  <Input className="mt-3" aria-label="Vehicle number" value={visitor.vehicle_number} onChange={(e) => setV("vehicle_number", e.target.value)} placeholder="Vehicle number, e.g. UP16 AB 1234" />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      <Section step={2} title="Visit" hint="Why they're here and who they're meeting.">
+        <div>
+          <Label required>Purpose</Label>
+          <div role="radiogroup" aria-label="Common purposes" className="flex flex-wrap gap-2">
+            {COMMON_PURPOSES.map((p) => (
+              <Chip key={p} role="radio" selected={purpose === p} onClick={() => { setPurpose(p); setErrors((e) => ({ ...e, purpose: "" })) }}>{p}</Chip>
+            ))}
+          </div>
+          <Input
+            className="mt-3"
+            aria-label="Purpose of visit"
+            value={COMMON_PURPOSES.includes(purpose) ? "" : purpose}
+            onChange={(e) => { setPurpose(e.target.value); setErrors((er) => ({ ...er, purpose: "" })) }}
+            placeholder="Or type the purpose, e.g. Technical interview for Java role"
+            maxLength={200}
+          />
+          {errors.purpose && <p className="mt-1.5 text-xs text-danger">{errors.purpose}</p>}
+        </div>
+
+        <div>
+          <Label required>Meeting</Label>
+          {hosts.isError ? (
+            <p className="text-sm text-danger">The list of people didn't load.</p>
+          ) : hostList.length === 0 && !hosts.isLoading ? (
+            <p className="text-sm text-muted-foreground">Nobody can host visits yet. Add team members under Team first.</p>
+          ) : hostList.length <= 6 ? (
+            <div role="radiogroup" aria-label="Host" className="grid gap-3 sm:grid-cols-2">
+              {hostList.map((h) => (
+                <ChoiceTile
+                  key={h.id}
+                  selected={hostId === String(h.id)}
+                  onSelect={() => { setHostId(String(h.id)); setErrors((e) => ({ ...e, host: "" })) }}
+                  icon={<span className="text-sm font-semibold">{h.full_name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}</span>}
+                  title={`${h.full_name}${h.id === user?.id ? " (you)" : ""}`}
+                  description={ROLE_LABELS[h.role]}
+                />
+              ))}
+            </div>
+          ) : (
+            <SearchableSelect
+              id="host"
+              value={hostId}
+              onChange={(v) => { setHostId(v); setErrors((e) => ({ ...e, host: "" })) }}
+              options={hostList.map((h) => ({ value: String(h.id), label: `${h.full_name}${h.id === user?.id ? " (you)" : ""}`, description: ROLE_LABELS[h.role] }))}
+              placeholder="Search people"
+            />
+          )}
+          {errors.host && <p className="mt-1.5 text-xs text-danger">{errors.host}</p>}
+        </div>
+
+        {(buildings.data?.length ?? 0) > 1 && (
+          <div>
+            <Label required>Building</Label>
+            <div role="radiogroup" aria-label="Building" className="flex flex-wrap gap-2">
+              {buildings.data!.map((b) => (
+                <Chip key={b.id} role="radio" selected={buildingId === String(b.id)} onClick={() => setBuildingId(String(b.id))}>{b.name}</Chip>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section step={3} title="When" hint={walkIn ? "They're here now. How long will they stay?" : "When they'll arrive and how long they'll stay."}>
+        {!walkIn && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label required>Date</Label>
+              <div role="radiogroup" aria-label="Date" className="flex flex-wrap gap-2">
+                <Chip role="radio" selected={date === todayIso()} onClick={() => setDate(todayIso())}>Today</Chip>
+                <Chip role="radio" selected={date === isoInDays(1)} onClick={() => setDate(isoInDays(1))}>Tomorrow</Chip>
+                <Input type="date" aria-label="Pick another date" min={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} className="h-9 w-auto" />
+              </div>
+              {errors.date && <p className="mt-1.5 text-xs text-danger">{errors.date}</p>}
+            </div>
+            <div>
+              <Label required>Arrival time</Label>
+              <Input type="time" aria-label="Arrival time" value={arrival} onChange={(e) => setArrival(e.target.value)} className="h-9 w-36" />
+            </div>
+          </div>
+        )}
+        <div>
+          <Label required>How long</Label>
+          <div role="radiogroup" aria-label="Duration" className="flex flex-wrap gap-2">
+            {DURATIONS.map((d) => (
+              <Chip key={d.minutes} role="radio" selected={duration === d.minutes} onClick={() => setDuration(d.minutes)}>{d.label}</Chip>
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground tabular-nums">
+            {walkIn ? "From now" : `From ${start}`} until <span className="font-medium text-foreground">{end}</span>
+          </p>
+        </div>
+        <div>
+          <Label>Notes for the gate</Label>
+          <div className="flex flex-wrap gap-2">
+            {NOTE_PRESETS.map((n) => (
+              <Chip key={n} selected={notes.includes(n)} onClick={() => setNotes((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]))}>{n}</Chip>
+            ))}
+          </div>
+          <Textarea className="mt-3" rows={2} value={extraNote} onChange={(e) => setExtraNote(e.target.value)} placeholder="Anything else security should know" aria-label="Other notes" />
+        </div>
+      </Section>
+
+      <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background/95 backdrop-blur lg:bottom-0 lg:left-auto lg:w-[calc(100%-var(--sidebar-w,16rem))]">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className="min-w-0 truncate text-sm text-muted-foreground" title={summary}>{summary}</p>
+          <Button size="lg" onClick={submit} loading={submitting} disabled={blacklisted} className="shrink-0">
+            {walkIn ? <><BadgeCheck className="size-4" /> Issue pass now</> : <><Send className="size-4" /> Register visit</>}
           </Button>
         </div>
-      </form>
+      </div>
 
-      <Dialog open={issued !== null} onOpenChange={(open) => { if (!open) { setIssued(null); navigate("/dashboard/security") } }}>
+      <Dialog open={issued !== null} onOpenChange={(open) => { if (!open) { setIssued(null); resetForm() } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><BadgeCheck className="size-5 text-success" /> Pass ready</DialogTitle>
@@ -268,7 +449,7 @@ export function RegisterVisitPage() {
           </DialogHeader>
           {issued && <PassCard visit={issued.visit} orgName={org?.name ?? "AdmitOne"} />}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setIssued(null); setWalkIn(true) }}>Register another</Button>
+            <Button variant="outline" onClick={() => { setIssued(null); resetForm() }}>Register another</Button>
             <Button onClick={() => { setIssued(null); navigate("/dashboard/security") }}>Go to gate</Button>
           </DialogFooter>
         </DialogContent>

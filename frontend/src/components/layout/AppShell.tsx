@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { Background } from "@/components/background"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { MobileTabBar } from "@/components/layout/MobileTabBar"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Topbar } from "@/components/layout/Topbar"
 
@@ -64,13 +65,14 @@ export function AppShell() {
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <Topbar onMenu={() => setMobileOpen(true)} onCollapse={toggleCollapse} collapsed={collapsed} />
-          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:py-7">
             <ErrorBoundary inline>
               <Outlet />
             </ErrorBoundary>
           </main>
         </div>
       </div>
+      <MobileTabBar onMore={() => setMobileOpen(true)} />
     </div>
   )
 }

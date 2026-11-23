@@ -6,7 +6,7 @@
  * booking endpoints, so a visitor can never accidentally drive the console.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ApiError, buildUrl } from "@/lib/api"
+import { ApiError, SERVER_UNREACHABLE, buildUrl } from "@/lib/api"
 import type { BookingBuilding, BookingContext, VisitStatus } from "@/lib/types"
 
 const TOKEN_KEY = "sg_visitor_token"
@@ -36,16 +36,18 @@ export function clearVisitorToken() {
 
 export async function visitorApi<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
-  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json")
+  // FormData (photo upload) sets its own multipart boundary.
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json")
   const token = getVisitorToken()
-  if (token) headers.set("Authorization", `Bearer ${token}`)
+  if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let res: Response
   try {
     res = await fetch(buildUrl(path), { ...options, headers, signal: controller.signal })
-  } catch {
-    throw new ApiError(408, { detail: "The request timed out. Check your connection and try again." })
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw new ApiError(408, { detail: "The request timed out. Check your connection and try again." })
+    throw new ApiError(0, { detail: SERVER_UNREACHABLE })
   } finally {
     clearTimeout(timer)
   }
@@ -56,7 +58,9 @@ export async function visitorApi<T>(path: string, options: RequestInit = {}): Pr
     try {
       body = JSON.parse(raw)
     } catch {
-      body = raw
+      // A 5xx with no JSON body means the API itself didn't answer (stopped,
+      // restarting, or the dev proxy can't reach it): say so instead of nothing.
+      body = res.status >= 500 ? { detail: SERVER_UNREACHABLE } : raw || { detail: `Request failed (${res.status}).` }
     }
     throw new ApiError(res.status, body)
   }
@@ -149,6 +153,9 @@ export interface VisitorBookingPayload {
   purpose: string
   purpose_other?: string
   notes?: string
+  /** Gate-pass identity: one identity proof and its number. */
+  document_type?: string
+  document_number?: string
 }
 
 interface SessionResponse {
@@ -189,8 +196,24 @@ function useSessionMutation(path: string) {
   })
 }
 
+/**
+ * Create a visitor account WITHOUT signing in: the person signs in
+ * explicitly next. The session the API issues on registration is revoked at
+ * once and never stored, so the page can't end up looking signed in while
+ * holding no token (which used to leave the booking wizard half signed-in).
+ */
 export function useVisitorRegister() {
-  return useSessionMutation("/api/visitor/auth/register/")
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const data = await visitorApi<SessionResponse>("/api/visitor/auth/register/", { method: "POST", body: JSON.stringify(payload) })
+      try {
+        await visitorApi("/api/visitor/auth/logout/", { method: "POST", body: "{}", headers: { Authorization: `Bearer ${data.token}` } })
+      } catch {
+        /* the unused session simply expires */
+      }
+      return data.account
+    },
+  })
 }
 export function useVisitorLogin() {
   return useSessionMutation("/api/visitor/auth/login/")
@@ -242,11 +265,19 @@ export function useVisitorBookings(enabled = true) {
 export function useCreateBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: VisitorBookingPayload) =>
-      visitorApi<{ message: string; visit: VisitorVisit }>("/api/visitor/bookings/", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: ({ photo, ...payload }: VisitorBookingPayload & { photo?: Blob | null }) => {
+      // A photo travels as multipart; without one the request stays JSON.
+      let body: BodyInit = JSON.stringify(payload)
+      if (photo) {
+        const form = new FormData()
+        for (const [key, value] of Object.entries(payload)) {
+          if (value !== null && value !== undefined && value !== "") form.append(key, String(value))
+        }
+        form.append("photo", photo, "photo.jpg")
+        body = form
+      }
+      return visitorApi<{ message: string; visit: VisitorVisit }>("/api/visitor/bookings/", { method: "POST", body })
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: visitorKeys.bookings }),
   })
 }
@@ -282,4 +313,28 @@ export function useRescheduleBooking() {
 }
 export function useAnnounceArrival() {
   return useBookingAction("arriving")
+}
+
+export interface MyStudentPass {
+  id: number
+  organization_name: string
+  admission_number: string
+  course: string
+  batch: string
+  valid_from: string
+  valid_until: string
+  status: "ACTIVE" | "UPCOMING" | "EXPIRED" | "REVOKED"
+  student_name: string
+  photo: string | null
+  payload: string | null
+}
+
+/** The signed-in student's own 6-month passes (empty for ordinary visitors). */
+export function useMyStudentPasses() {
+  return useQuery({
+    queryKey: ["visitor", "student-pass"],
+    queryFn: () => visitorApi<{ passes: MyStudentPass[] }>("/api/visitor/student-pass/"),
+    enabled: Boolean(getVisitorToken()),
+    staleTime: 60_000,
+  })
 }

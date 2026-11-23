@@ -11,7 +11,10 @@ queries against the existing ``Visit`` table.
 
 from datetime import time as time_class
 
+from django.utils import timezone
+
 from accounts.models import User
+from accounts.utils import org_localdate, org_timezone
 from organizations.models import Employee
 from visits.models import Visit, VisitStatus
 
@@ -145,23 +148,70 @@ def resolve_booking_host(org, host_id, department_id=None):
     return host
 
 
-def get_host_availability(org, host, day, department=None):
+def _past_cutoff(org, day):
+    """Org-local wall-clock time before which ``day``'s slots have started.
+
+    ``None`` for any day other than today: only today's earlier slots are
+    gone. A slot that has already started can't be booked.
+    """
+    if day != org_localdate(org):
+        return None
+    now = timezone.localtime(timezone.now(), timezone=org_timezone(org))
+    return time_class(now.hour, now.minute)
+
+
+def get_host_availability(org, host, day, department=None, blocks=None):
     """Available appointment slots for ``host`` on ``day``.
 
     Only slots that (a) fall inside the day's working windows and (b) do not
-    overlap an existing active visit for that host are returned.
+    overlap an existing active visit for that host are returned. ``blocks``
+    may be passed in when the caller already fetched them (calendar range).
     """
     duration = organization_slot_duration(org)
-    blocks = host_blocks_for(org, host, day) if host is not None else []
+    if blocks is None:
+        blocks = host_blocks_for(org, host, day) if host is not None else []
+    cutoff = _past_cutoff(org, day)
     slots = []
     for win_start, win_end in weekly_windows(org, day):
         for start, end in iter_appointment_slots(win_start, win_end, duration):
+            if cutoff is not None and start <= cutoff:
+                continue
             if any(intervals_overlap(start, end, bs, be) for bs, be in blocks):
                 continue
             slots.append({"start": start.strftime("%H:%M"), "end": end.strftime("%H:%M")})
             if len(slots) >= MAX_SLOTS_PER_DAY:
                 return slots
     return slots
+
+
+#: Longest range the calendar endpoint answers in one request.
+MAX_CALENDAR_DAYS = 90
+
+
+def get_host_availability_calendar(org, host, start_day, days):
+    """``{iso_date: free_slot_count}`` for ``days`` days from ``start_day``.
+
+    One query for the host's reservations across the whole range, so the
+    booking calendar costs a single request instead of one per day.
+    """
+    from datetime import timedelta
+
+    days = max(1, min(int(days), MAX_CALENDAR_DAYS))
+    end_day = start_day + timedelta(days=days - 1)
+    by_day = {}
+    rows = Visit.objects.filter(
+        organization=org,
+        host=host,
+        visit_date__range=(start_day, end_day),
+        status__in=BLOCKING_STATUSES,
+    ).values_list("visit_date", "expected_arrival", "expected_exit")
+    for visit_date, arrival, exit_time in rows:
+        by_day.setdefault(visit_date, []).append((arrival, exit_time))
+    out = {}
+    for offset in range(days):
+        day = start_day + timedelta(days=offset)
+        out[day.isoformat()] = len(get_host_availability(org, host, day, blocks=by_day.get(day, [])))
+    return out
 
 
 def validate_booking_slot(org, host, day, arrival, exit_time, exclude_visit_pk=None):
@@ -176,6 +226,9 @@ def validate_booking_slot(org, host, day, arrival, exit_time, exclude_visit_pk=N
         return False, "This day is not a working day."
     if not any(ws <= arrival and exit_time <= we for ws, we in windows):
         return False, "The selected time is outside working hours."
+    cutoff = _past_cutoff(org, day)
+    if cutoff is not None and arrival <= cutoff:
+        return False, "That time has already passed today. Please pick a later time."
     if host is None:
         return True, ""
     blocks = host_blocks_for(org, host, day, exclude_visit_pk)

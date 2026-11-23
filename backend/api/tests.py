@@ -1520,6 +1520,86 @@ class HostAvailabilityTests(APITestCase):
         self.assertEqual(visit.status, VisitStatus.CHECKED_OUT)
         self.client.credentials()
 
+    # ---- Calendar (one request for the whole range) ------------------
+
+    def _cal(self, slug="pulse-labs", **params):
+        qs = "&".join(f"{key}={value}" for key, value in params.items())
+        return f"/api/public/booking/{slug}/calendar/?{qs}"
+
+    def test_calendar_counts_match_per_day_availability(self):
+        self._book(self.host, self.open_day, "10:00", "10:30")
+        resp = self.client.get(self._cal(host=self.host.pk, start=self.today.isoformat(), days=7))
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data["days"]), 7)
+        self.assertEqual(resp.data["slot_duration_minutes"], 30)
+        for offset in range(7):
+            day = self.today + timedelta(days=offset)
+            expected = len(get_host_availability(self.org, self.host, day))
+            self.assertEqual(resp.data["days"][day.isoformat()], expected, day)
+        # 09:00-18:00 in 30-minute slots = 18, minus the booked one.
+        self.assertEqual(resp.data["days"][self.open_day.isoformat()], 17)
+
+    def test_calendar_defaults_to_90_days_from_today(self):
+        resp = self.client.get(self._cal(host=self.host.pk))
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data["days"]), 90)
+        self.assertEqual(resp.data["start"], self.today.isoformat())
+
+    def test_calendar_clamps_past_start_to_today(self):
+        past = (self.today - timedelta(days=5)).isoformat()
+        resp = self.client.get(self._cal(host=self.host.pk, start=past, days=3))
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data["start"], self.today.isoformat())
+
+    def test_calendar_marks_closed_days_with_zero(self):
+        resp = self.client.get(self._cal(slug="closed-co", host=self.closed_host.pk, start=self.sunday.isoformat(), days=1))
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data["days"][self.sunday.isoformat()], 0)
+
+    def test_calendar_rejects_bad_input_and_foreign_hosts(self):
+        self.assertEqual(self.client.get(self._cal(host=self.other_host.pk)).status_code, 400)
+        self.assertEqual(self.client.get(self._cal(host=self.host_disabled.pk)).status_code, 400)
+        self.assertEqual(self.client.get(self._cal(host="abc")).status_code, 400)
+        self.assertEqual(self.client.get(self._cal(host=self.host.pk, days=91)).status_code, 400)
+        self.assertEqual(self.client.get(self._cal(host=self.host.pk, start="nope")).status_code, 400)
+        self.assertEqual(self.client.get(self._cal(slug="missing-org", host=self.host.pk)).status_code, 404)
+
+    def test_calendar_query_count_does_not_grow_with_days(self):
+        url = self._cal(host=self.host.pk, days=90)
+        with self.assertNumQueries(self._calendar_queries(url, 1)):
+            self.client.get(url)
+
+    def test_today_hides_and_rejects_slots_that_already_started(self):
+        from datetime import time as dtime
+        from accounts.utils import org_localdate, org_timezone
+        from visits.availability import get_host_availability_calendar
+
+        today = org_localdate(self.org)
+        noon = datetime.combine(today, dtime(12, 10), tzinfo=org_timezone(self.org))
+        with patch("django.utils.timezone.now", return_value=noon):
+            slots = get_host_availability(self.org, self.host, today)
+            self.assertTrue(slots)
+            self.assertTrue(all(s["start"] > "12:10" for s in slots), slots)
+            self.assertEqual(slots[0]["start"], "12:30")
+            # 12:30 .. 17:30 in 30-minute slots
+            self.assertEqual(get_host_availability_calendar(self.org, self.host, today, 1)[today.isoformat()], 11)
+            ok, reason = validate_booking_slot(self.org, self.host, today, dtime(9, 0), dtime(9, 30))
+            self.assertFalse(ok)
+            self.assertIn("already passed", reason)
+            ok, _ = validate_booking_slot(self.org, self.host, today, dtime(12, 30), dtime(13, 0))
+            self.assertTrue(ok)
+            # Tomorrow is untouched.
+            tomorrow = today + timedelta(days=1)
+            self.assertEqual(get_host_availability(self.org, self.host, tomorrow)[0]["start"], "09:00")
+
+    def _calendar_queries(self, url, _):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as short:
+            self.client.get(self._cal(host=self.host.pk, days=1))
+        return len(short.captured_queries)
+
 
     # ---- Regression --------------------------------------------------
 

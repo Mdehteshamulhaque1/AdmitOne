@@ -19,8 +19,8 @@ export function Benefits() {
       <Container className="grid items-center gap-16 lg:grid-cols-2 lg:gap-20">
         <div>
           <Reveal>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300 backdrop-blur-sm">
-              <span className="size-1.5 rounded-full bg-indigo-400 shadow-glow" /> Why AdmitOne
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-300 backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-blue-400 shadow-glow" /> Why AdmitOne
             </span>
           </Reveal>
           <Reveal delay={0.08}>
@@ -49,7 +49,7 @@ export function Benefits() {
                 variants={fadeUp}
                 className="flex items-center gap-3 text-[15px] text-foreground/90"
               >
-                <CheckCircle2 className="size-5 shrink-0 text-indigo-400" /> {check}
+                <CheckCircle2 className="size-5 shrink-0 text-blue-400" /> {check}
               </motion.li>
             ))}
           </motion.ul>

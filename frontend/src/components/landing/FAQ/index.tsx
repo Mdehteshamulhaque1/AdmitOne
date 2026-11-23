@@ -28,7 +28,7 @@ export function FAQ() {
                 <div
                   className={cn(
                     "glass-card overflow-hidden rounded-2xl transition-colors",
-                    isOpen && "border-indigo-400/30",
+                    isOpen && "border-blue-400/30",
                   )}
                 >
                   <button
@@ -45,7 +45,7 @@ export function FAQ() {
                       className={cn(
                         "flex size-7 shrink-0 items-center justify-center rounded-full border",
                         isOpen
-                          ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-300"
+                          ? "border-blue-400/40 bg-blue-500/15 text-blue-300"
                           : "border-white/10 bg-white/[0.04] text-muted-foreground",
                       )}
                     >

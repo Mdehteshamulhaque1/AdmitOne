@@ -80,7 +80,7 @@ export function Hero() {
           className="absolute inset-x-[8%] bottom-0 h-[55%]"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 20% 70%, rgba(129,140,248,0.35) 0 2px, transparent 3px), radial-gradient(circle at 48% 40%, rgba(96,165,250,0.35) 0 2px, transparent 3px), radial-gradient(circle at 76% 62%, rgba(167,139,250,0.35) 0 2px, transparent 3px)",
+              "radial-gradient(circle at 20% 70%, rgba(91,140,255,0.35) 0 2px, transparent 3px), radial-gradient(circle at 48% 40%, rgba(96,165,250,0.35) 0 2px, transparent 3px), radial-gradient(circle at 76% 62%, rgba(152,162,179,0.35) 0 2px, transparent 3px)",
             backgroundSize: "140px 120px",
             opacity: 0.6,
           }}
@@ -90,20 +90,20 @@ export function Hero() {
       {/* Readability overlays */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-linear-to-b from-[#0a0e1f]/85 via-[#0a0e1f]/72 to-[#0a0e1f]"
+        className="absolute inset-0 bg-linear-to-b from-[#0f131a]/85 via-[#0f131a]/72 to-[#0f131a]"
       />
-      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-r from-[#0a0e1f]/80 via-transparent to-[#0a0e1f]/60" />
+      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-r from-[#0f131a]/80 via-transparent to-[#0f131a]/60" />
       <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(7,17,31,0.6)_100%)]" />
 
       {/* Floating blurred blobs */}
       <motion.div
         aria-hidden="true"
         style={reduce ? undefined : { x: glowX, y: glowY }}
-        className="pointer-events-none absolute left-[8%] top-[24%] size-[26rem] animate-blob rounded-full bg-indigo-500/12 blur-[110px]"
+        className="pointer-events-none absolute left-[8%] top-[24%] size-[26rem] animate-blob rounded-full bg-blue-500/12 blur-[110px]"
       />
       <motion.div
         aria-hidden="true"
-        className="pointer-events-none absolute right-[6%] top-[16%] size-[22rem] animate-blob rounded-full bg-blue-600/12 blur-[100px] [animation-delay:-6s]"
+        className="pointer-events-none absolute right-[6%] top-[16%] size-[22rem] animate-blob rounded-full bg-slate-600/12 blur-[100px] [animation-delay:-6s]"
       />
       <div aria-hidden="true" className="sg-noise" />
 
@@ -113,7 +113,7 @@ export function Hero() {
         className="pointer-events-none absolute left-1/2 top-[-30%] h-[120%] w-[70%] -translate-x-1/2 opacity-[0.14]"
         style={{
           background:
-            "conic-gradient(from 180deg at 50% 50%, transparent 62%, rgba(129,140,248,0.5) 70%, transparent 78%, rgba(96,165,250,0.4) 84%, transparent 92%)",
+            "conic-gradient(from 180deg at 50% 50%, transparent 62%, rgba(91,140,255,0.5) 70%, transparent 78%, rgba(96,165,250,0.4) 84%, transparent 92%)",
           animation: reduce ? undefined : "ray 32s linear infinite",
         }}
       />
@@ -132,7 +132,7 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.15, ease: EASE }}
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] py-1.5 pl-1.5 pr-4 text-xs font-medium text-muted-foreground backdrop-blur-md"
         >
-          <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-indigo-500/20 to-blue-500/20 px-2.5 py-0.5 font-semibold text-indigo-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-blue-500/20 to-slate-500/20 px-2.5 py-0.5 font-semibold text-blue-300">
             <Sparkles className="size-3.5" /> Signed QR passes
           </span>
           Single-use, tamper-proof, verified at the gate
@@ -177,7 +177,7 @@ export function Hero() {
             asChild
           >
             <a href="#dashboard-preview">
-              <PlayCircle className="size-5 text-indigo-400" /> Watch product tour
+              <PlayCircle className="size-5 text-blue-400" /> Watch product tour
             </a>
           </Button>
         </motion.div>
@@ -190,7 +190,7 @@ export function Hero() {
         >
           {TRUST_BADGES.map((badge) => (
             <li key={badge} className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="size-4 text-indigo-400" /> {badge}
+              <BadgeCheck className="size-4 text-blue-400" /> {badge}
             </li>
           ))}
         </motion.ul>
@@ -205,9 +205,9 @@ export function Hero() {
         className="glass-card absolute left-[4%] top-[30%] z-10 hidden w-64 animate-float-slow rounded-2xl p-4 xl:block"
       >
         <div className="flex items-center gap-3">
-          <span className="relative flex size-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
+          <span className="relative flex size-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
             <ShieldCheck className="size-5" />
-            <span className="absolute inset-0 animate-pulse-ring rounded-xl border border-indigo-400/60" />
+            <span className="absolute inset-0 animate-pulse-ring rounded-xl border border-blue-400/60" />
           </span>
           <div>
             <div className="text-xs text-muted-foreground">QR verified</div>
@@ -224,7 +224,7 @@ export function Hero() {
         className="glass-card absolute bottom-[26%] right-[4%] z-10 hidden w-56 animate-float rounded-2xl p-4 [animation-delay:-3s] xl:block"
       >
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-slate-500/15 text-slate-300">
             <CalendarCheck className="size-5" />
           </span>
           <div>
@@ -245,7 +245,7 @@ export function Hero() {
         <span className="text-[11px] uppercase tracking-[0.22em]">Scroll</span>
         <span className="block h-8 w-px overflow-hidden bg-white/15">
           <motion.span
-            className="block h-3 w-full bg-linear-to-b from-indigo-400 to-transparent"
+            className="block h-3 w-full bg-linear-to-b from-blue-400 to-transparent"
             animate={reduce ? undefined : { y: [-12, 32] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />

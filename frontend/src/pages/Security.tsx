@@ -4,6 +4,8 @@ import {
   Ban,
   CheckCircle2,
   DoorOpen,
+  GraduationCap,
+  IdCard,
   Keyboard,
   LogIn,
   LogOut,
@@ -29,10 +31,11 @@ import { SearchInput } from "@/components/widgets/SearchInput"
 import { StatusChip } from "@/components/widgets/StatusChip"
 import { QrScanner } from "@/components/security/QrScanner"
 import { VisitDrawer } from "@/components/visits/VisitDrawer"
+import { ID_PROOFS } from "@/components/visitor/booking"
 import { useAuth } from "@/lib/auth"
 import { useCheckIn, useCheckOut, useRoomScan, useRooms, useScanPass, useVisitList } from "@/lib/queries"
-import { formatApiError, type ScanResult, type Visit } from "@/lib/types"
-import { cn, formatClock, formatRelative } from "@/lib/utils"
+import { formatApiError, type ScanResult, type StudentPass, type Visit } from "@/lib/types"
+import { cn, formatClock, formatDate, formatRelative } from "@/lib/utils"
 
 type ScanMode = "gate" | "room"
 
@@ -41,50 +44,101 @@ interface ScanOutcome {
   title: string
   detail: string
   visit: Visit | null
+  /** Set when a 6-month student pass was scanned. */
+  student?: StudentPass | null
+  direction?: "IN" | "OUT"
   at: Date
   payload: string
 }
 
 function ScanResultCard({ outcome, onDismiss, onOpen }: { outcome: ScanOutcome; onDismiss: () => void; onOpen: (v: Visit) => void }) {
   const v = outcome.visit
+  const proof = v?.visitor.document_type ? ID_PROOFS.find((p) => p.value === v.visitor.document_type)?.label ?? v.visitor.document_type : null
   return (
     <div
       role="status"
       className={cn(
-        "rounded-2xl border p-4 animate-scale-in",
-        outcome.ok ? "border-success/40 bg-success-soft" : "border-danger/40 bg-danger-soft",
+        "overflow-hidden rounded-2xl border-2 animate-scale-in",
+        outcome.ok ? "border-success bg-success-soft" : "border-danger bg-danger-soft",
       )}
     >
-      <div className="flex items-start gap-3">
-        <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", outcome.ok ? "bg-success text-white" : "bg-danger text-white")}>
-          {outcome.ok ? <CheckCircle2 className="size-6" /> : <XCircle className="size-6" />}
-        </span>
+      <div className={cn("flex items-center gap-3 px-4 py-3 text-white", outcome.ok ? "bg-success" : "bg-danger")}>
+        {outcome.ok ? <CheckCircle2 className="size-7 shrink-0" /> : <XCircle className="size-7 shrink-0" />}
         <div className="min-w-0 flex-1">
-          <div className={cn("text-base font-bold", outcome.ok ? "text-success" : "text-danger")}>
-            {outcome.title}
-          </div>
-          <div className="text-sm text-foreground">{outcome.detail}</div>
-          {v && (
-            <div className="mt-3 flex items-center gap-3 rounded-xl bg-card/70 p-3">
-              <Avatar name={v.visitor.full_name} src={v.visitor.photo} className="size-10" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-semibold">{v.visitor.full_name}</span>
-                  <StatusChip status={v.status} size="sm" />
-                  {v.visitor.is_blacklisted && <Badge tone="danger" size="sm"><Ban className="size-3" /> Blacklisted</Badge>}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {v.purpose} · {v.host_name ? `Host ${v.host_name}` : "No host"} · {formatClock(v.expected_arrival)}–{formatClock(v.expected_exit)}
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => onOpen(v)}>Details</Button>
-            </div>
-          )}
-          <div className="mt-2 text-[11px] text-muted-foreground">{outcome.at.toLocaleTimeString()}</div>
+          <div className="text-xl font-bold leading-tight">{outcome.title}</div>
+          <div className="text-sm text-white/90">{outcome.detail}</div>
         </div>
-        <Button variant="ghost" size="iconSm" onClick={onDismiss} aria-label="Dismiss">
+        <Button variant="ghost" size="iconSm" onClick={onDismiss} aria-label="Dismiss" className="text-white hover:bg-white/15 hover:text-white">
           <XCircle className="size-4" />
         </Button>
+      </div>
+      {outcome.student && (
+        <div className="flex gap-4 p-4">
+          <Avatar name={outcome.student.student.full_name} src={outcome.student.student.photo} className="size-24 shrink-0 rounded-2xl text-2xl" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate text-lg font-semibold">{outcome.student.student.full_name}</span>
+              <Badge tone="primary" size="sm"><GraduationCap className="size-3" /> Student</Badge>
+              {outcome.ok && outcome.direction && (
+                <Badge tone={outcome.direction === "IN" ? "success" : "neutral"} size="sm">{outcome.direction}</Badge>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <span className="font-mono">{outcome.student.admission_number}</span> · {outcome.student.course}{outcome.student.batch ? ` · ${outcome.student.batch}` : ""}
+            </div>
+            <div className="text-xs text-muted-foreground">Pass valid until {formatDate(outcome.student.valid_until)}</div>
+            {outcome.ok && (
+              <div className="flex items-center gap-2 rounded-lg bg-card/80 px-2.5 py-1.5 text-xs">
+                <IdCard className="size-4 shrink-0 text-muted-foreground" /> Match the face to the photo.
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground">{outcome.at.toLocaleTimeString()}</div>
+          </div>
+        </div>
+      )}
+      {v && (
+        <div className="flex gap-4 p-4">
+          <Avatar name={v.visitor.full_name} src={v.visitor.photo} className="size-24 shrink-0 rounded-2xl text-2xl" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate text-lg font-semibold">{v.visitor.full_name}</span>
+              {v.visitor.is_blacklisted && <Badge tone="danger" size="sm"><Ban className="size-3" /> Blacklisted</Badge>}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {v.purpose} · {v.host_name ? `meeting ${v.host_name}` : "no host"} · {formatClock(v.expected_arrival)}–{formatClock(v.expected_exit)}
+            </div>
+            {v.room_label && <div className="inline-flex items-center gap-1 text-sm font-medium text-primary"><DoorOpen className="size-4" /> Room {v.room_label}</div>}
+            {outcome.ok && (
+              <div className="flex items-center gap-2 rounded-lg bg-card/80 px-2.5 py-1.5 text-xs">
+                <IdCard className="size-4 shrink-0 text-muted-foreground" />
+                {proof ? (
+                  <span>Check the original <strong>{proof}</strong>{v.visitor.document_number ? <> ending <span className="font-mono">{v.visitor.document_number.slice(-4)}</span></> : null} and match the face to the photo.</span>
+                ) : (
+                  <span>No ID was given online. Ask for a photo ID and match the face.</span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-2 pt-1">
+              <StatusChip status={v.status} size="sm" />
+              <span className="text-[11px] text-muted-foreground">{outcome.at.toLocaleTimeString()}</span>
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => onOpen(v)}>Details</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReadyCard({ mode }: { mode: ScanMode }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-card px-4 py-4">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary"><ScanLine className="size-6" /></span>
+      <div>
+        <div className="font-semibold">Ready to scan</div>
+        <div className="text-sm text-muted-foreground">
+          {mode === "gate" ? "Hold the visitor's QR pass up to the camera, or use a barcode scanner." : "Scan the visitor's pass at the room door to mark attendance."}
+        </div>
       </div>
     </div>
   )
@@ -132,8 +186,14 @@ export function SecurityPage() {
           toast.success("Attendance recorded", { description: res.visit?.visitor.full_name })
         } else {
           const res = await scan.mutateAsync({ payload: value })
-          result = { ok: true, title: "Entry granted", detail: res.detail, visit: res.visit, at: new Date(), payload: value }
-          toast.success("Checked in", { description: res.visit?.visitor.full_name })
+          if (res.kind === "student") {
+            const title = res.direction === "OUT" ? "Student exit" : "Student entry"
+            result = { ok: true, title, detail: res.detail, visit: null, student: res.student_pass ?? null, direction: res.direction, at: new Date(), payload: value }
+            toast.success(title, { description: res.student_pass?.student.full_name })
+          } else {
+            result = { ok: true, title: "Entry granted", detail: res.detail, visit: res.visit, at: new Date(), payload: value }
+            toast.success("Checked in", { description: res.visit?.visitor.full_name })
+          }
         }
       } catch (e) {
         const data = (e as { data?: ScanResult }).data
@@ -142,6 +202,7 @@ export function SecurityPage() {
           title: mode === "room" ? "Not recorded" : "Entry denied",
           detail: data?.detail ?? formatApiError(e),
           visit: data?.visit ?? null,
+          student: data?.student_pass ?? null,
           at: new Date(),
           payload: value,
         }
@@ -226,7 +287,7 @@ export function SecurityPage() {
 
       <div className="grid gap-5 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-2">
-          {outcome && <ScanResultCard outcome={outcome} onDismiss={() => setOutcome(null)} onOpen={setSelected} />}
+          {outcome ? <ScanResultCard outcome={outcome} onDismiss={() => setOutcome(null)} onOpen={setSelected} /> : <ReadyCard mode={mode} />}
           <Card>
             <CardContent className="space-y-4 p-4 sm:p-5">
               <div className="grid grid-cols-2 gap-2">
@@ -304,7 +365,7 @@ export function SecurityPage() {
                   {history.slice(1).map((h, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs">
                       <span className={cn("size-2 rounded-full", h.ok ? "bg-success" : "bg-danger")} />
-                      <span className="truncate">{h.visit?.visitor.full_name ?? "Unknown pass"}</span>
+                      <span className="truncate">{h.visit?.visitor.full_name ?? (h.student ? `${h.student.student.full_name} (${h.direction ?? "student"})` : "Unknown pass")}</span>
                       <span className="ml-auto shrink-0 text-muted-foreground">{h.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     </li>
                   ))}

@@ -7,6 +7,7 @@ ADMIN_PERMISSIONS = {
     "manage_org", "manage_buildings", "manage_departments", "manage_employees",
     "manage_users", "view_reports", "view_audit_logs", "blacklist_visitor",
     "badge_print", "scan_qr", "view_visitor_documents", "view_visitor_pii",
+    "manage_student_passes",
 }
 # Least privilege on personal data (audit finding "Visitor PII exposure"):
 #

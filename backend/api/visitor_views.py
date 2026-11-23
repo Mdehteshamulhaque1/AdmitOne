@@ -175,6 +175,11 @@ class VisitorBookingsView(_VisitorView):
             purpose=data["purpose"],
             purpose_other=data.get("purpose_other", ""),
             notes=data.get("notes", ""),
+            identity={
+                "document_type": data.get("document_type") or "",
+                "document_number": data.get("document_number") or "",
+                "photo": data.get("photo"),
+            },
             **({"category": data["category"]} if data.get("category") else {}),
         )
         if not ok:
@@ -254,3 +259,35 @@ class VisitorBookingArrivingView(_VisitorView):
         if not ok:
             return Response({"detail": message}, status=400)
         return Response({"detail": message, "visit": VisitorAccountVisitSerializer(account_visit(request.visitor_account, pk) or updated).data})
+
+
+class VisitorStudentPassView(_VisitorView):
+    """The signed-in student's own 6-month passes (any workspace), with QR."""
+
+    def get(self, request):
+        from visits.models import StudentPass
+        from visits.student_passes import effective_status
+
+        passes = (
+            StudentPass.objects.filter(visitor__account=request.visitor_account)
+            .select_related("organization", "visitor")
+            .order_by("-valid_until")
+        )
+        out = []
+        for sp in passes:
+            state = effective_status(sp)
+            out.append({
+                "id": sp.pk,
+                "organization_name": sp.organization.name,
+                "admission_number": sp.admission_number,
+                "course": sp.course,
+                "batch": sp.batch,
+                "valid_from": sp.valid_from,
+                "valid_until": sp.valid_until,
+                "status": state,
+                "student_name": sp.visitor.full_name,
+                "photo": request.build_absolute_uri(sp.visitor.photo.url) if sp.visitor.photo else None,
+                # The QR only for a pass that can still be used.
+                "payload": sp.payload if state in ("ACTIVE", "UPCOMING") else None,
+            })
+        return Response({"passes": out})

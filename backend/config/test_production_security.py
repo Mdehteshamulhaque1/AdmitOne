@@ -160,6 +160,7 @@ class BrowsableApiTests(SimpleTestCase):
             "EMAIL_HOST_USER": "apikey",
             "EMAIL_HOST_PASSWORD": "SG.secret",
             "DEFAULT_FROM_EMAIL": "no-reply@securegate.test",
+            "ADMITONE_IGNORE_DOTENV": "1",
         })
         result = subprocess.run(
             [sys.executable, "-c", self.SCRIPT],

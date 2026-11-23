@@ -30,8 +30,8 @@ export function Workflow() {
       <Container className="grid gap-14 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
         <div className="lg:sticky lg:top-32 lg:self-start">
           <Reveal>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300 backdrop-blur-sm">
-              <span className="size-1.5 rounded-full bg-indigo-400 shadow-glow" /> How it works
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-300 backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-blue-400 shadow-glow" /> How it works
             </span>
           </Reveal>
           <Reveal delay={0.08}>
@@ -54,7 +54,7 @@ export function Workflow() {
             whileInView={{ scaleY: 1 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute left-[23px] top-2 h-[calc(100%-1rem)] w-px origin-top bg-linear-to-b from-indigo-400 via-blue-500/60 to-transparent"
+            className="absolute left-[23px] top-2 h-[calc(100%-1rem)] w-px origin-top bg-linear-to-b from-blue-400 via-slate-500/60 to-transparent"
           />
           {WORKFLOW.map((step, i) => {
             const Icon = ICONS[step.icon]
@@ -67,9 +67,9 @@ export function Workflow() {
                 transition={{ duration: 0.6, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
                 className="relative flex items-start gap-5"
               >
-                <span className="glass-card relative z-10 flex size-12 shrink-0 items-center justify-center rounded-xl text-indigo-300">
+                <span className="glass-card relative z-10 flex size-12 shrink-0 items-center justify-center rounded-xl text-blue-300">
                   <Icon className="size-5" strokeWidth={1.8} />
-                  <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-[#0d1624] text-[10px] font-bold text-indigo-300 ring-1 ring-indigo-400/40">
+                  <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-[#0d1624] text-[10px] font-bold text-blue-300 ring-1 ring-blue-400/40">
                     {i + 1}
                   </span>
                 </span>

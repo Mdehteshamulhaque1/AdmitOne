@@ -1,12 +1,15 @@
 import { lazy, Suspense, type ReactNode } from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes, useSearchParams } from "react-router-dom"
 import { AppShell } from "@/components/layout/AppShell"
 import { PageLoader } from "@/components/widgets/PageLoader"
 import { useAuth } from "@/lib/auth"
 import type { Permission } from "@/lib/types"
 import { ForbiddenPage, NotFoundPage } from "@/pages/Error"
 import { DashboardPage } from "@/pages/Dashboard"
-import { WelcomePage } from "@/pages/auth/Welcome"
+import { AdminLoginPage } from "@/pages/auth/AdminLogin"
+import { PortalChooserPage } from "@/pages/auth/PortalChooser"
+import { NoticesPage } from "@/pages/public/Notices"
+import { RulesPage } from "@/pages/public/Rules"
 import { OnboardingPage } from "@/pages/Onboarding"
 
 const LandingPage = lazy(() => import("@/pages/Landing"))
@@ -29,17 +32,27 @@ const SettingsPage = lazyPage(() => import("@/pages/Settings"), (m) => m.Setting
 const TeamPage = lazyPage(() => import("@/pages/Team"), (m) => m.TeamPage)
 const VisitorHubPage = lazyPage(() => import("@/pages/VisitorHub"), (m) => m.VisitorHubPage)
 const VisitorsPage = lazyPage(() => import("@/pages/Visitors"), (m) => m.VisitorsPage)
+const StudentPassesPage = lazyPage(() => import("@/pages/StudentPasses"), (m) => m.StudentPassesPage)
 const VisitsPage = lazyPage(() => import("@/pages/Visits"), (m) => m.VisitsPage)
 
 function LazyRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>
 }
 
+/** Old `/login?role=…` links: send people to the matching portal. */
+function LoginRedirect() {
+  const [params] = useSearchParams()
+  if (params.get("role") === "staff") {
+    return <Navigate to={params.get("mode") === "register" ? "/admin?mode=register" : "/admin"} replace />
+  }
+  return <Navigate to="/visitor" replace />
+}
+
 function Protected({ children, perm }: { children: ReactNode; perm?: Permission }) {
   const { isAuthenticated, loading, org, can } = useAuth()
 
   if (loading) return <PageLoader />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated) return <Navigate to="/admin" replace />
   // A signed-in user with no workspace has not finished onboarding; every
   // console route is meaningless until they do.
   if (org === null) return <Navigate to="/onboarding" replace />
@@ -52,18 +65,23 @@ function Protected({ children, perm }: { children: ReactNode; perm?: Permission 
 export default function App() {
   return (
     <Routes>
+      {/* Front door: two portals (visitor, admin) on the same backend. */}
+      <Route path="/" element={<PortalChooserPage />} />
+      <Route path="/notices" element={<NoticesPage />} />
+      <Route path="/rules" element={<RulesPage />} />
       <Route
-        path="/"
+        path="/about"
         element={
           <Suspense fallback={<PageLoader />}>
             <LandingPage />
           </Suspense>
         }
       />
-      {/* One entry page for both roles (visitor / staff): create account, then sign in. */}
-      <Route path="/login" element={<WelcomePage />} />
-      <Route path="/signup" element={<Navigate to="/login?role=staff&mode=register" replace />} />
-      <Route path="/start" element={<Navigate to="/login" replace />} />
+      {/* Admin portal sign-in; the console itself lives under /dashboard. */}
+      <Route path="/admin" element={<AdminLoginPage />} />
+      <Route path="/login" element={<LoginRedirect />} />
+      <Route path="/signup" element={<Navigate to="/admin?mode=register" replace />} />
+      <Route path="/start" element={<Navigate to="/" replace />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       {/* One stepwise visitor page: account -> organisation -> details ->
           schedule -> review -> confirmation, plus "My visits". The older
@@ -109,6 +127,14 @@ export default function App() {
           }
         />
         <Route path="blacklist" element={<LazyRoute><BlacklistPage /></LazyRoute>} />
+        <Route
+          path="student-passes"
+          element={
+            <Protected perm="manage_student_passes">
+              <LazyRoute><StudentPassesPage /></LazyRoute>
+            </Protected>
+          }
+        />
         <Route
           path="reports"
           element={

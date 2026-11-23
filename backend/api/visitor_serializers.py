@@ -4,8 +4,11 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+import re
+
 from organizations.models import Organization
-from visits.models import VisitType
+from visits.models import DocumentType, VisitType
+from visits.validators import validate_image_upload
 
 from .serializers import PublicBuildingSerializer, VisitorFacingVisitSerializer
 
@@ -117,6 +120,37 @@ class VisitorBookingSerializer(serializers.Serializer):
     purpose = serializers.CharField(allow_blank=False, max_length=200)
     purpose_other = serializers.CharField(required=False, allow_blank=True, max_length=120)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    # Identity for the gate pass (like a court or office gate-pass counter):
+    # a recent photo and an identity proof. The original ID is checked at the
+    # gate against what is entered here. Sent as multipart when a photo is
+    # attached; everything else may also come as JSON.
+    document_type = serializers.ChoiceField(choices=DocumentType.choices, required=False, allow_blank=True)
+    document_number = serializers.CharField(required=False, allow_blank=True, max_length=60)
+    photo = serializers.ImageField(required=False, allow_null=True, validators=[validate_image_upload])
+
+    # Shape of each ID number, so a typo is caught before reception sees it.
+    ID_FORMATS = {
+        DocumentType.AADHAAR: (r"\d{12}", "Aadhaar number must be 12 digits."),
+        DocumentType.PAN: (r"[A-Z]{5}\d{4}[A-Z]", "PAN must look like ABCDE1234F."),
+        DocumentType.PASSPORT: (r"[A-Z]\d{7}", "Passport number must look like A1234567."),
+        DocumentType.DRIVING_LICENSE: (r"[A-Z0-9-]{8,20}", "Enter the driving licence number as printed (8 to 20 letters or digits)."),
+        DocumentType.COMPANY_ID: (r".{3,60}", "Enter the ID number printed on the card."),
+    }
+
+    def validate(self, attrs):
+        doc_type = attrs.get("document_type") or ""
+        raw = attrs.get("document_number") or ""
+        number = re.sub(r"\s+", "", raw).upper() if doc_type != DocumentType.COMPANY_ID else raw.strip()
+        if raw.strip() and not doc_type:
+            raise serializers.ValidationError({"document_type": ["Choose which identity proof this number belongs to."]})
+        if doc_type:
+            if not number:
+                raise serializers.ValidationError({"document_number": ["Enter the ID proof number."]})
+            pattern, message = self.ID_FORMATS[doc_type]
+            if not re.fullmatch(pattern, number):
+                raise serializers.ValidationError({"document_number": [message]})
+        attrs["document_number"] = number
+        return attrs
 
 
 class VisitorAccountVisitSerializer(VisitorFacingVisitSerializer):

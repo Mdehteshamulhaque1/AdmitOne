@@ -21,13 +21,13 @@ export function Background() {
           <svg width="820" height="560" viewBox="0 0 820 560" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id={`bl-${gid}`} x1="0" y1="0" x2="820" y2="560">
-                <stop stopColor="#a78bfa" stopOpacity="0" />
-                <stop offset="0.5" stopColor="#a78bfa" stopOpacity="0.14" />
-                <stop offset="1" stopColor="#a78bfa" stopOpacity="0" />
+                <stop stopColor="#98a2b3" stopOpacity="0" />
+                <stop offset="0.5" stopColor="#98a2b3" stopOpacity="0.14" />
+                <stop offset="1" stopColor="#98a2b3" stopOpacity="0" />
               </linearGradient>
               <radialGradient id={`orb-${gid}`} cx="0.5" cy="0.5" r="0.5">
-                <stop offset="0%" stopColor="#818cf8" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                <stop offset="0%" stopColor="#5b8cff" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#5b8cff" stopOpacity="0" />
               </radialGradient>
             </defs>
             <g stroke="rgba(148,163,184,0.16)" fill="rgba(148,163,184,0.05)" strokeWidth="1">
@@ -52,7 +52,7 @@ export function Background() {
               <path d="M438 180 H468" />
               <path d="M588 220 H618" />
             </g>
-            <g fill="#818cf8">
+            <g fill="#5b8cff">
               <circle cx="134" cy="240" r="4" />
               <circle cx="222" cy="260" r="4" />
               <circle cx="344" cy="200" r="4" />
@@ -63,8 +63,8 @@ export function Background() {
               <circle cx="134" cy="240" r="14" />
               <circle cx="588" cy="220" r="14" />
             </g>
-            <circle cx="580" cy="210" r="46" stroke="rgba(167,139,250,0.18)" strokeWidth="1" fill="none" />
-            <circle cx="580" cy="210" r="4" fill="#a78bfa" opacity="0.7" />
+            <circle cx="580" cy="210" r="46" stroke="rgba(152,162,179,0.18)" strokeWidth="1" fill="none" />
+            <circle cx="580" cy="210" r="4" fill="#98a2b3" opacity="0.7" />
           </svg>
         </div>
       )}

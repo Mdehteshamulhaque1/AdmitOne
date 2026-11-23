@@ -42,7 +42,7 @@ export function Particles({ className }: { className?: string }) {
       vx: (Math.random() - 0.5) * 0.18,
       a: Math.random() * 0.45 + 0.14,
       tw: Math.random() * Math.PI * 2,
-      hue: Math.random() > 0.5 ? 167 : 217,
+      hue: Math.random() > 0.5 ? 222 : 214,
     })
 
     const resize = () => {

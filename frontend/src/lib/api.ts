@@ -73,6 +73,8 @@ export function clearTokens(): void {
 
 export const SERVER_UNREACHABLE = "The AdmitOne server isn't responding right now. Check that the backend is running, then try again."
 
+export const SERVER_REJECTED = "The server couldn't accept this request right now. Please try again in a few minutes; if it keeps happening, contact the institute."
+
 export class ApiError extends Error {
   status: number
   data: unknown
@@ -137,7 +139,14 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
     } catch {
       // A 5xx with no JSON body means the API itself didn't answer (stopped,
       // restarting, or the dev proxy can't reach it): say so instead of nothing.
-      body = res.status >= 500 ? { detail: SERVER_UNREACHABLE } : raw || { detail: `Request failed (${res.status}).` }
+      // Non-JSON error: an HTML page from the server or a proxy. Never show raw HTML.
+      const isHtml = raw.trimStart().startsWith("<")
+      body =
+        res.status >= 500
+          ? { detail: SERVER_UNREACHABLE }
+          : isHtml
+            ? { detail: SERVER_REJECTED }
+            : raw || { detail: `Request failed (${res.status}).` }
     }
     throw new ApiError(res.status, body)
   }

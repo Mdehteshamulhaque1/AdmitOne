@@ -6,7 +6,7 @@
  * booking endpoints, so a visitor can never accidentally drive the console.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ApiError, SERVER_UNREACHABLE, buildUrl } from "@/lib/api"
+import { ApiError, SERVER_REJECTED, SERVER_UNREACHABLE, buildUrl } from "@/lib/api"
 import type { BookingBuilding, BookingContext, VisitStatus } from "@/lib/types"
 
 const TOKEN_KEY = "sg_visitor_token"
@@ -60,7 +60,14 @@ export async function visitorApi<T>(path: string, options: RequestInit = {}): Pr
     } catch {
       // A 5xx with no JSON body means the API itself didn't answer (stopped,
       // restarting, or the dev proxy can't reach it): say so instead of nothing.
-      body = res.status >= 500 ? { detail: SERVER_UNREACHABLE } : raw || { detail: `Request failed (${res.status}).` }
+      // Non-JSON error: an HTML page from the server or a proxy. Never show raw HTML.
+      const isHtml = raw.trimStart().startsWith("<")
+      body =
+        res.status >= 500
+          ? { detail: SERVER_UNREACHABLE }
+          : isHtml
+            ? { detail: SERVER_REJECTED }
+            : raw || { detail: `Request failed (${res.status}).` }
     }
     throw new ApiError(res.status, body)
   }
